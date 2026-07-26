@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-dev-launcher"
+version = "0.4.0"
+description = "A Windows-first local AI development environment launcher."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "AI Dev Launcher contributors" }]
+dependencies = [
+  "typer>=0.16,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pyinstaller>=6.16,<7",
+  "pytest>=8.3,<10",
+]
+
+[project.scripts]
+ai-dev = "ai_dev_launcher.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_dev_launcher"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
