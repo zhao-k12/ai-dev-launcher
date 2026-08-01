@@ -31,7 +31,7 @@ defineEmits<{
         role="listitem"
         @click="$emit('select', project)"
       >
-        <span class="folder-icon" aria-hidden="true">▱</span>
+        <span class="folder-icon" aria-hidden="true">⌁</span>
         <span class="project-copy">
           <strong>{{ project.name }}</strong>
           <small>{{ project.path }}</small>

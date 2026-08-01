@@ -52,7 +52,7 @@ describe("App v2 Phase 1", () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     const view = await render();
     expect(view.host.textContent).toContain("与 Codex 桌面端独立");
-    expect(view.host.textContent).toContain("向 Codex 描述你想完成的任务");
+    expect(view.host.textContent).toContain("有什么可以帮你？");
     expect(view.host.textContent).toContain("标准模式");
     view.unmount();
   });
