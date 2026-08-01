@@ -1,73 +1,45 @@
 import { _electron as electron } from "playwright";
-import { access, mkdtemp, mkdir } from "node:fs/promises";
+import { access, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
 const root = resolve(import.meta.dirname, "../..");
-const tempRoot = await mkdtemp(join(tmpdir(), "ai-dev-launcher-e2e-"));
+const tempRoot = await mkdtemp(join(tmpdir(), "ai-dev-launcher-v2-e2e-"));
 const configDir = join(tempRoot, "config");
-const projectDir = join(tempRoot, "sample-project");
-const secondProjectDir = join(tempRoot, "second-project");
-await mkdir(projectDir, { recursive: true });
-await mkdir(secondProjectDir, { recursive: true });
-
-const application = await electron.launch({
-  args: ["."],
-  cwd: resolve(root, "desktop"),
-  env: {
-    ...process.env,
-    AI_DEV_CONFIG_DIR: configDir,
-    AI_DEV_PYTHON: resolve(root, ".venv/Scripts/python.exe"),
-    AI_DEV_BRIDGE_TEST_MODE: "1"
-  }
-});
+const application = await electron.launch({ args: ["."], cwd: resolve(root, "desktop"), env: { ...process.env, AI_DEV_CONFIG_DIR: configDir, AI_DEV_PYTHON: resolve(root, ".venv/Scripts/python.exe"), AI_DEV_BRIDGE_TEST_MODE: "1" } });
 
 try {
   const page = await application.firstWindow();
-  await page.getByText("尚未添加项目").waitFor();
-  await page.getByRole("button", { name: "添加第一个项目" }).click();
+  await page.getByText("创建第一个项目").waitFor();
+  await page.getByRole("button", { name: "创建新项目" }).click();
   await page.getByTestId("project-name").fill("sample-project");
-  await page.getByTestId("project-path").fill(projectDir);
+  await page.getByTestId("project-path").evaluate((element, value) => { element.removeAttribute("readonly"); element.value = value; element.dispatchEvent(new Event("input", { bubbles: true })); }, tempRoot);
   await page.getByTestId("submit-project").click();
-  await page.getByText("项目添加成功。").waitFor();
-  await page.getByText(projectDir).first().waitFor();
-  await page.getByTestId("environment-check").click();
-  await page.getByText("开发环境检查").waitFor();
-  await page.getByText("Codex", { exact: true }).waitFor();
-  await page.screenshot({ path: resolve(root, "design/gui-phase2-implemented.png") });
-  await page.getByRole("button", { name: "关闭", exact: true }).click();
-  await page.getByTestId("launch-codex").click();
-  await page.getByText("新终端窗口启动", { exact: false }).waitFor();
-  await page.getByTestId("initialize-project").click();
-  await page.getByTestId("preview-prepare").click();
-  await page.getByText("Dry run", { exact: false }).waitFor();
-  await page.screenshot({ path: resolve(root, "design/gui-phase3-implemented.png") });
-  await page.getByTestId("apply-prepare").click();
-  await page.getByTestId("prepare-complete").waitFor();
-  await access(join(projectDir, "AGENTS.md"));
-  await access(join(projectDir, ".ai-dev-launcher", "project.json"));
-  await access(join(projectDir, ".git"));
-  await page.getByTestId("finish-prepare").click();
+  await page.getByText("已创建并初始化").waitFor();
+  await access(join(tempRoot, "sample-project", "AGENTS.md"));
+  await access(join(tempRoot, "sample-project", ".ai-dev-launcher", "project.json"));
+  await page.getByText("向 Codex 描述你想完成的任务").waitFor();
+  await page.screenshot({ path: resolve(root, "design/v2-phase2-chat-workspace.png") });
+  await page.getByRole("button", { name: "终端", exact: true }).click();
+  await page.getByTestId("terminal-command").fill("Set-Content -LiteralPath 'note.txt' -Value 'hello'");
+  await page.getByRole("button", { name: "运行", exact: true }).click();
+  await page.getByText("退出码 0").waitFor();
+  await page.getByRole("button", { name: /改动/ }).click();
+  await page.getByText("note.txt", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "节省", exact: true }).click();
+  await page.screenshot({ path: resolve(root, "design/v2-phase3-workbench.png") });
 
-  await page.getByTestId("add-project").click();
-  await page.getByTestId("project-name").fill("second-project");
-  await page.getByTestId("project-path").fill(secondProjectDir);
-  await page.getByTestId("submit-project").click();
-  await page.getByTestId("project-row-second-project").click();
-  await page.getByTestId("make-default").click();
-  await page.getByText("默认项目已更新。").waitFor();
-  await page.getByTestId("remove-project").click();
-  await page.getByTestId("confirm-remove").click();
-  await page.getByText("项目文件未删除。", { exact: false }).waitFor();
-  await page.getByTestId("project-row-second-project").waitFor({
-    state: "detached"
-  });
+  await page.getByTestId("environment-check").click();
+  await page.getByText("进程级隔离 · 不修改 Codex 桌面端").waitFor();
+  await page.getByRole("button", { name: "完成" }).click();
+  await page.getByTestId("cli-version").click();
+  await page.getByText("启动器私有 Codex CLI").waitFor();
+  await page.getByText("不影响 Codex 桌面端和全局 CLI").waitFor();
+  await page.screenshot({ path: resolve(root, "design/v2-phase1-implemented.png") });
 } catch (error) {
   const page = await application.firstWindow();
   console.error("E2E PAGE TEXT:", await page.locator("body").innerText());
-  await page.screenshot({
-    path: resolve(root, "design/gui-phase1-e2e-failure.png")
-  });
+  await page.screenshot({ path: resolve(root, "design/v2-phase1-e2e-failure.png") });
   throw error;
 } finally {
   await application.close();

@@ -1,5 +1,5 @@
 import { _electron as electron } from "playwright";
-import { access, mkdtemp, mkdir } from "node:fs/promises";
+import { access, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -11,7 +11,6 @@ if (!executablePath) {
 const root = resolve(import.meta.dirname, "../..");
 const tempRoot = await mkdtemp(join(tmpdir(), "ai-dev-launcher-installed-"));
 const projectDir = join(tempRoot, "installed-project");
-await mkdir(projectDir, { recursive: true });
 
 const application = await electron.launch({
   executablePath,
@@ -25,22 +24,27 @@ const application = await electron.launch({
 
 try {
   const page = await application.firstWindow();
-  await page.getByRole("button", { name: /添加第一个项目|娣诲姞绗竴涓」鐩?/ }).click();
+  await page.getByRole("button", { name: "创建新项目" }).click();
   await page.getByTestId("project-name").fill("installed-project");
-  await page.getByTestId("project-path").fill(projectDir);
+  await page.getByTestId("project-path").evaluate((element, value) => {
+    element.removeAttribute("readonly");
+    element.value = value;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }, tempRoot);
   await page.getByTestId("submit-project").click();
   await page.getByText(projectDir).first().waitFor();
 
   await page.getByTestId("environment-check").click();
-  await page.getByText("Codex", { exact: true }).waitFor();
-  await page.locator("button").filter({ hasText: /^(关闭|鍏抽棴)$/ }).click();
-
-  await page.getByTestId("initialize-project").click();
-  await page.getByTestId("preview-prepare").click();
-  await page.getByTestId("apply-prepare").click();
-  await page.getByTestId("prepare-complete").waitFor();
+  await page.getByText("进程级隔离 · 不修改 Codex 桌面端").waitFor();
+  await page.getByRole("button", { name: "完成" }).click();
   await access(join(projectDir, "AGENTS.md"));
   await access(join(projectDir, ".ai-dev-launcher", "project.json"));
+
+  await page.getByRole("button", { name: "终端", exact: true }).click();
+  await page.getByTestId("terminal-command").fill("Write-Output packaged-ok");
+  await page.getByRole("button", { name: "运行", exact: true }).click();
+  await page.getByText("packaged-ok", { exact: true }).waitFor();
+  await page.getByText("退出码 0").waitFor();
 
   await page.screenshot({
     path: resolve(root, "design/gui-installed.png")

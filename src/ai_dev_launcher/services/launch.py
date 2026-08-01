@@ -61,7 +61,18 @@ class LaunchService:
         runner: ProcessRunner = _run_interactive,
         starter: ProcessStarter = _start_detached,
         environment: Mapping[str, str] | None = None,
+        private_tool_root: Path | None = None,
     ) -> None:
+        if tool_service is None and private_tool_root is not None:
+            private_bins = [
+                private_tool_root / "codex" / "node_modules" / ".bin",
+                private_tool_root / "headroom" / "bin",
+            ]
+            detection_environment = dict(environment or os.environ)
+            detection_environment["PATH"] = os.pathsep.join(
+                [*(str(path) for path in private_bins), detection_environment.get("PATH", "")]
+            )
+            tool_service = ToolDetectionService(environment=detection_environment)
         self.tool_service = tool_service or ToolDetectionService()
         self.runner = runner
         self.starter = starter
@@ -92,6 +103,7 @@ class LaunchService:
                 "wrap",
                 "codex",
                 "--no-context-tool",
+                "--no-mcp",
                 "--no-tokensave",
                 "--no-serena",
                 "--",
@@ -106,6 +118,7 @@ class LaunchService:
         overrides = (
             ("HEADROOM_TELEMETRY", "off"),
             ("HEADROOM_UPDATE_CHECK", "off"),
+            ("AI_DEV_LAUNCHER_ISOLATED", "1"),
         )
         return LaunchPlan(
             project=project.name,

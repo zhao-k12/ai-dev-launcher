@@ -10,6 +10,7 @@ from ai_dev_launcher.errors import (
     ProjectAlreadyExistsError,
     ProjectNotFoundError,
 )
+from ai_dev_launcher.services.preparation import ProjectPreparationService
 
 
 class ProjectService:
@@ -45,6 +46,40 @@ class ProjectService:
             config.default_project = project.name
         self.store.save(config)
         return project
+
+    def create_project(self, name: str, parent: Path) -> Project:
+        """Create, register, and initialize a new project with safe defaults."""
+
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise ValueError("Project name cannot be empty")
+        if normalized_name in {".", ".."} or any(
+            character in normalized_name for character in '<>:"/\\|?*'
+        ):
+            raise ValueError("Project name contains characters that Windows cannot use")
+
+        resolved_parent = parent.expanduser().resolve()
+        if not resolved_parent.is_dir():
+            raise ValueError(f"Save location does not exist: {resolved_parent}")
+
+        project_path = resolved_parent / normalized_name
+        if project_path.exists():
+            raise ProjectAlreadyExistsError(
+                f"A file or folder already exists at: {project_path}"
+            )
+
+        project_path.mkdir()
+        try:
+            project = self.add_project(normalized_name, project_path)
+            self.set_default(project.name)
+            ProjectPreparationService().prepare(project, initialize_git=True)
+            return project
+        except Exception:
+            try:
+                project_path.rmdir()
+            except OSError:
+                pass
+            raise
 
     def get_project(self, name: str) -> Project:
         for project in self.store.load().projects:

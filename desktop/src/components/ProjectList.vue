@@ -18,7 +18,7 @@ defineEmits<{
     <div class="sidebar-heading">
       <h2>项目</h2>
       <button class="button secondary compact" data-testid="add-project" @click="$emit('add')">
-        <span aria-hidden="true">＋</span> 添加项目
+        <span aria-hidden="true">＋</span> 创建新项目
       </button>
     </div>
     <div class="project-list" role="list">

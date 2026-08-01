@@ -14,6 +14,9 @@ from ai_dev_launcher.services import (
     LaunchService,
     ProjectPreparationService,
     ProjectService,
+    RuntimeService,
+    PrivateToolUpdateService,
+    WorkspaceService,
     ToolDetectionService,
 )
 
@@ -22,6 +25,11 @@ def _service() -> ProjectService:
     configured = os.environ.get("AI_DEV_CONFIG_DIR")
     config_dir = Path(configured) if configured else default_config_dir()
     return ProjectService(ConfigStore(config_dir))
+
+
+def _config_dir() -> Path:
+    configured = os.environ.get("AI_DEV_CONFIG_DIR")
+    return Path(configured) if configured else default_config_dir()
 
 
 def handle_request(request: dict[str, Any]) -> dict[str, Any]:
@@ -47,6 +55,12 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
         if payload.get("make_default"):
             service.set_default(project.name)
         return {"project": project.to_dict()}
+    if action == "projects.create":
+        project = service.create_project(
+            str(payload.get("name", "")),
+            Path(str(payload.get("parent", ""))),
+        )
+        return {"project": project.to_dict()}
     if action == "projects.default":
         project = service.set_default(str(payload.get("name", "")))
         return {"project": project.to_dict()}
@@ -56,9 +70,19 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
     if action == "tools.status":
         results = ToolDetectionService().check_all()
         return {"tools": [result.to_dict() for result in results]}
+    if action == "runtime.bootstrap":
+        return RuntimeService(_config_dir()).bootstrap()
+    if action == "runtime.status":
+        return RuntimeService(_config_dir()).status()
+    if action == "runtime.update":
+        if os.environ.get("AI_DEV_BRIDGE_TEST_MODE") == "1":
+            return {"tools": [], "skipped": "test mode"}
+        return PrivateToolUpdateService(_config_dir()).update_all()
     if action == "projects.launch":
         project = service.get_project(str(payload.get("name", "")))
-        launcher = LaunchService()
+        launcher = LaunchService(
+            private_tool_root=_config_dir() / "runtime" / "tools"
+        )
         plan = launcher.build_plan(project, use_headroom=True)
         process_id = (
             0
@@ -66,6 +90,44 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
             else launcher.start(plan)
         )
         return {"pid": process_id, "plan": plan.to_dict()}
+    if action == "chat.plan":
+        project = service.get_project(str(payload.get("name", "")))
+        prompt = str(payload.get("prompt", "")).strip()
+        if not prompt:
+            raise ValueError("Chat prompt cannot be empty")
+        permission = str(payload.get("permission", "standard"))
+        session_id = str(payload.get("session_id", "")).strip()
+        args: list[str] = ["exec"]
+        if session_id:
+            args.extend(["resume", session_id])
+            args.append("--json")
+        else:
+            args.extend(["--json", "--color", "never"])
+        if permission == "full":
+            args.append("--dangerously-bypass-approvals-and-sandbox")
+        else:
+            args.extend(["--sandbox", "workspace-write"])
+        args.append(prompt)
+        launcher = LaunchService(private_tool_root=_config_dir() / "runtime" / "tools")
+        return launcher.build_plan(project, use_headroom=True, codex_args=tuple(args)).to_dict()
+    if action.startswith("workspace."):
+        project = service.get_project(str(payload.get("name", "")))
+        workspace = WorkspaceService(project)
+        if action == "workspace.tree":
+            return workspace.tree()
+        if action == "workspace.read":
+            return workspace.read(str(payload.get("path", "")))
+        if action == "workspace.diff":
+            path = payload.get("path")
+            return workspace.git_diff(str(path) if path else None)
+        if action == "workspace.stage":
+            return workspace.stage(str(payload.get("path", "")))
+        if action == "workspace.restore":
+            return workspace.restore(str(payload.get("path", "")))
+        if action == "workspace.terminal":
+            return workspace.run_terminal(str(payload.get("command", "")))
+        if action == "workspace.stats":
+            return workspace.headroom_stats(int(payload.get("port", 8787)))
     if action == "projects.prepare":
         project = service.get_project(str(payload.get("name", "")))
         result = ProjectPreparationService().prepare(

@@ -2,12 +2,29 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("launcher", {
   listProjects: () => ipcRenderer.invoke("projects:list"),
-  addProject: (payload) => ipcRenderer.invoke("projects:add", payload),
+  createProject: (payload) => ipcRenderer.invoke("projects:create", payload),
   setDefaultProject: (name) =>
     ipcRenderer.invoke("projects:default", { name }),
   removeProject: (name) =>
     ipcRenderer.invoke("projects:remove", { name }),
   getToolStatus: () => ipcRenderer.invoke("tools:status"),
+  bootstrapRuntime: () => ipcRenderer.invoke("runtime:bootstrap"),
+  getRuntimeStatus: () => ipcRenderer.invoke("runtime:status"),
+  updatePrivateTools: () => ipcRenderer.invoke("runtime:update"),
+  startChat: (payload) => ipcRenderer.invoke("chat:start", payload),
+  stopChat: (taskId) => ipcRenderer.invoke("chat:stop", { task_id: taskId }),
+  onChatEvent: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("chat:event", listener);
+    return () => ipcRenderer.removeListener("chat:event", listener);
+  },
+  getFileTree: (name) => ipcRenderer.invoke("workspace:tree", { name }),
+  readFile: (name, path) => ipcRenderer.invoke("workspace:read", { name, path }),
+  getGitDiff: (name, path) => ipcRenderer.invoke("workspace:diff", { name, path }),
+  stageFile: (name, path) => ipcRenderer.invoke("workspace:stage", { name, path }),
+  restoreFile: (name, path) => ipcRenderer.invoke("workspace:restore", { name, path }),
+  runTerminal: (name, command) => ipcRenderer.invoke("workspace:terminal", { name, command }),
+  getHeadroomStats: (name, port) => ipcRenderer.invoke("workspace:stats", { name, port }),
   launchProject: (name) =>
     ipcRenderer.invoke("projects:launch", { name }),
   prepareProject: (name, dryRun, initializeGit) =>

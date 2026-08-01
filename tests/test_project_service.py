@@ -91,3 +91,20 @@ def test_get_default_project(service, tmp_path):
 def test_get_default_project_requires_configuration(service):
     with pytest.raises(ProjectNotFoundError, match="No default project"):
         service.get_default_project()
+
+
+def test_create_project_creates_and_initializes_directory(service, tmp_path):
+    project = service.create_project("new-app", tmp_path)
+
+    root = tmp_path / "new-app"
+    assert project.path == str(root.resolve())
+    assert (root / "AGENTS.md").exists()
+    assert (root / ".ai-dev-launcher" / "project.json").exists()
+    assert service.store.load().default_project == "new-app"
+
+
+def test_create_project_rejects_existing_destination(service, tmp_path):
+    (tmp_path / "existing").mkdir()
+
+    with pytest.raises(ProjectAlreadyExistsError):
+        service.create_project("existing", tmp_path)

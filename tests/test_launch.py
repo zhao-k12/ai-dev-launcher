@@ -48,6 +48,7 @@ def test_headroom_plan_wraps_codex_without_extra_tools(tmp_path):
         "wrap",
         "codex",
         "--no-context-tool",
+        "--no-mcp",
         "--no-tokensave",
         "--no-serena",
         "--",
@@ -113,6 +114,7 @@ def test_execute_sets_path_privacy_and_forwards_exit_code(tmp_path):
     assert captured["cwd"] == tmp_path
     assert captured["environment"]["PATH"].startswith(str(codex.parent) + os.pathsep)
     assert captured["environment"]["HEADROOM_TELEMETRY"] == "off"
+    assert captured["environment"]["AI_DEV_LAUNCHER_ISOLATED"] == "1"
     assert captured["environment"]["HEADROOM_UPDATE_CHECK"] == "off"
 
 

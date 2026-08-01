@@ -70,3 +70,18 @@ def test_bridge_previews_and_prepares_project(tmp_path, monkeypatch):
     assert result["dry_run"] is False
     assert (project_dir / "AGENTS.md").exists()
     assert (project_dir / ".ai-dev-launcher" / "project.json").exists()
+
+
+def test_bridge_creates_new_project_and_reports_runtime(tmp_path, monkeypatch):
+    monkeypatch.setenv("AI_DEV_CONFIG_DIR", str(tmp_path / "config"))
+
+    created = handle_request({
+        "action": "projects.create",
+        "payload": {"name": "fresh-app", "parent": str(tmp_path)},
+    })
+    runtime = handle_request({"action": "runtime.bootstrap"})
+
+    assert created["project"]["name"] == "fresh-app"
+    assert (tmp_path / "fresh-app" / "AGENTS.md").exists()
+    assert runtime["isolation"] == "process"
+    assert runtime["checks"][0]["label"] == "Codex 桌面端配置独立"
