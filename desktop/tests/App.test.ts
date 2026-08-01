@@ -132,6 +132,20 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("renders assistant markdown and collapses fenced code", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
+    localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
+      id: "session-1", name: "test", updatedAt: new Date().toISOString(),
+      messages: [{ id: "answer-1", role: "assistant", text: "## 结果\n\n已经完成。\n\n```ts\nconst ready = true;\n```" }]
+    }]));
+    const view = await render();
+    expect(view.host.querySelector(".markdown-body h2")?.textContent).toBe("结果");
+    const details = view.host.querySelector("details.inline-code-details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain("TypeScript");
+    view.unmount();
+  });
+
   it("accepts a pasted image", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     vi.mocked(window.launcher.saveClipboardImage).mockResolvedValue({ path: "C:\\temp\\image.png" });

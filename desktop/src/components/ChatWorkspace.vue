@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { ChatEvent, Project, RuntimeStatus } from "../types";
+import MarkdownMessage from "./MarkdownMessage.vue";
 
 type Permission = "standard" | "full";
 interface Message { id: string; role: "user" | "assistant" | "tool" | "status"; text: string; }
@@ -109,7 +110,7 @@ onUnmounted(() => dispose?.());
   <section class="chat-workspace">
     <div class="conversation">
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
-      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><pre v-else>{{ message.text }}</pre></article></div>
+      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><MarkdownMessage v-else-if="message.role === 'assistant'" :content="message.text" /><pre v-else>{{ message.text }}</pre></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
       <footer class="composer-shell">
         <div class="composer-card">

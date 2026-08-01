@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -25,6 +25,13 @@ function createWindow(): void {
     }
   });
   const chats = new ChatSessionManager(window);
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  window.webContents.on("will-navigate", (event, url) => {
+    if (url !== window.webContents.getURL()) event.preventDefault();
+  });
   ipcMain.handle("chat:start", (_event, payload) => chats.start(payload));
   ipcMain.handle("chat:stop", (_event, payload) => chats.stop(payload.task_id));
   window.on("closed", () => chats.stopAll());

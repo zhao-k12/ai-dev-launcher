@@ -1,7 +1,7 @@
 {
   "name": "ai-dev-launcher-desktop",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Windows desktop interface for AI Dev Launcher",
   "main": "dist-electron/main/index.js",
   "type": "module",
@@ -13,10 +13,12 @@
     "test:e2e": "npm run build && node tests/electron.e2e.mjs"
   },
   "dependencies": {
+    "markdown-it": "^15.0.0",
     "vue": "^3.5.24"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
+    "@types/markdown-it": "^14.1.2",
     "@vitejs/plugin-vue": "^6.0.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
