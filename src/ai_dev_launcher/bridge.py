@@ -107,21 +107,29 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
         images = payload.get("images") or []
         if not isinstance(images, list) or not all(isinstance(path, str) for path in images):
             raise ValueError("Chat images must be a list of paths")
-        args: list[str] = ["exec"]
-        if session_id:
-            args.extend(["resume", session_id])
-            args.append("--json")
-        else:
-            args.extend(["--json", "--color", "never"])
-        if permission == "full":
-            args.append("--dangerously-bypass-approvals-and-sandbox")
-        else:
-            args.extend(["--sandbox", "workspace-write"])
+        image_args: list[str] = []
         for image in images:
             image_path = Path(image)
             if not image_path.is_file():
                 raise ValueError(f"Chat image does not exist: {image}")
-            args.extend(["--image", str(image_path)])
+            image_args.extend(["--image", str(image_path)])
+        args: list[str] = ["exec"]
+        if session_id:
+            args.append("resume")
+            if permission == "full":
+                args.append("--dangerously-bypass-approvals-and-sandbox")
+            else:
+                args.extend(["--config", 'sandbox_mode="workspace-write"'])
+            args.append("--json")
+            args.extend(image_args)
+            args.append(session_id)
+        else:
+            args.extend(["--json", "--color", "never"])
+            if permission == "full":
+                args.append("--dangerously-bypass-approvals-and-sandbox")
+            else:
+                args.extend(["--sandbox", "workspace-write"])
+            args.extend(image_args)
         args.append(prompt)
         launcher = LaunchService(private_tool_root=_config_dir() / "runtime" / "tools")
         return launcher.build_plan(project, use_headroom=True, codex_args=tuple(args)).to_dict()

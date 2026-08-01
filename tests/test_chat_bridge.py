@@ -39,3 +39,38 @@ def test_chat_plan_passes_images_to_codex(tmp_path, monkeypatch):
 
     monkeypatch.setattr("ai_dev_launcher.bridge.LaunchService", FakeLauncher)
     handle_request({"action": "chat.plan", "payload": {"name": "sample", "prompt": "analyze", "images": [str(image)]}})
+
+
+def test_chat_resume_uses_resume_supported_sandbox_config(tmp_path, monkeypatch):
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    monkeypatch.setenv("AI_DEV_CONFIG_DIR", str(tmp_path / "config"))
+    handle_request({"action": "projects.add", "payload": {"name": "sample", "path": str(project_dir)}})
+
+    class FakeLauncher:
+        def __init__(self, **kwargs): pass
+        def build_plan(self, project, use_headroom, codex_args):
+            assert codex_args == (
+                "exec", "resume", "--config", 'sandbox_mode="workspace-write"',
+                "--json", "thread-1", "continue",
+            )
+            return type("Plan", (), {"to_dict": lambda self: {"command": list(codex_args)}})()
+
+    monkeypatch.setattr("ai_dev_launcher.bridge.LaunchService", FakeLauncher)
+    handle_request({"action": "chat.plan", "payload": {"name": "sample", "prompt": "continue", "session_id": "thread-1"}})
+
+
+def test_chat_resume_full_access_uses_supported_bypass_flag(tmp_path, monkeypatch):
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    monkeypatch.setenv("AI_DEV_CONFIG_DIR", str(tmp_path / "config"))
+    handle_request({"action": "projects.add", "payload": {"name": "sample", "path": str(project_dir)}})
+
+    class FakeLauncher:
+        def __init__(self, **kwargs): pass
+        def build_plan(self, project, use_headroom, codex_args):
+            assert codex_args[:5] == ("exec", "resume", "--dangerously-bypass-approvals-and-sandbox", "--json", "thread-1")
+            return type("Plan", (), {"to_dict": lambda self: {"command": list(codex_args)}})()
+
+    monkeypatch.setattr("ai_dev_launcher.bridge.LaunchService", FakeLauncher)
+    handle_request({"action": "chat.plan", "payload": {"name": "sample", "prompt": "continue", "session_id": "thread-1", "permission": "full"}})
