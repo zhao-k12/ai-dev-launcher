@@ -44,12 +44,17 @@ export function callPython<T>(
 ): Promise<T> {
   return new Promise((resolvePromise, reject) => {
     const command = bridgeCommand();
+    const bridgeEnvironment = { ...process.env };
+    for (const key of Object.keys(bridgeEnvironment)) {
+      if (key.startsWith("_PYI_")) delete bridgeEnvironment[key];
+    }
+    bridgeEnvironment.PYINSTALLER_RESET_ENVIRONMENT = "1";
     const child = execFile(
       command.executable,
       command.args,
       {
         cwd: command.cwd,
-        env: process.env,
+        env: bridgeEnvironment,
         encoding: "utf8",
         timeout: 15000,
         windowsHide: true
