@@ -111,10 +111,13 @@ describe("App v2 Phase 1", () => {
     clickButton(view.host, "发送"); await flush();
     const input = vi.mocked(window.launcher.startChat).mock.calls[0][0];
     chatListener?.({ task_id: input.task_id!, type: "codex", event: { type: "thread.started", thread_id: "thread-1" } });
+    chatListener?.({ task_id: input.task_id!, type: "codex", event: { type: "turn.started" } });
     chatListener?.({ task_id: input.task_id!, type: "codex", event: { type: "item.completed", item: { type: "agent_message", text: "这是项目说明。" } } });
     chatListener?.({ task_id: input.task_id!, type: "complete", exit_code: 0 });
     await nextTick();
     expect(view.host.textContent).toContain("这是项目说明。");
+    expect(view.host.textContent).not.toContain("Codex 正在思考");
+    expect(localStorage.getItem(`ai-dev-launcher:sessions:${project.path}`)).not.toContain('"role":"status"');
     view.unmount();
   });
 

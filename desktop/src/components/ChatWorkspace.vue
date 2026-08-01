@@ -22,19 +22,31 @@ const active = computed(() => sessions.value.find((item) => item.id === activeId
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
-function save(): void { localStorage.setItem(storageKey.value, JSON.stringify(sessions.value)); }
+function save(): void {
+  const persisted = sessions.value.map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status") }));
+  localStorage.setItem(storageKey.value, JSON.stringify(persisted));
+}
 async function scrollToLatest(): Promise<void> {
   await nextTick();
   if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
 }
 function load(): void {
-  try { sessions.value = JSON.parse(localStorage.getItem(storageKey.value) || "[]") as Session[]; } catch { sessions.value = []; }
+  try {
+    sessions.value = (JSON.parse(localStorage.getItem(storageKey.value) || "[]") as Session[])
+      .map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status") }));
+  } catch { sessions.value = []; }
   if (!sessions.value.length) newSession(); else activeId.value = sessions.value[0].id;
   void scrollToLatest();
 }
 function newSession(): void { const item: Session = { id: uid(), name: "新会话", messages: [], updatedAt: new Date().toISOString() }; sessions.value.unshift(item); activeId.value = item.id; save(); void scrollToLatest(); }
 function appendTo(session: Session | null, role: Message["role"], text: string): void { if (!session) return; session.messages.push({ id: uid(), role, text }); session.updatedAt = new Date().toISOString(); save(); if (session.id === activeId.value) void scrollToLatest(); }
 function append(role: Message["role"], text: string): void { appendTo(active.value, role, text); }
+function clearStatus(session: Session): void { session.messages = session.messages.filter((message) => message.role !== "status"); }
+function setStatus(session: Session, text: string): void {
+  clearStatus(session);
+  session.messages.push({ id: uid(), role: "status", text });
+  if (session.id === activeId.value) void scrollToLatest();
+}
 function eventText(event: Record<string, unknown>): string | null {
   const item = (event.item ?? {}) as Record<string, unknown>;
   return typeof item.text === "string" ? item.text : typeof event.text === "string" ? event.text : null;
@@ -43,9 +55,10 @@ function handleEvent(payload: ChatEvent): void {
   if (payload.task_id !== runningTask.value) return;
   const target = sessions.value.find((item) => item.id === runningSessionId.value) ?? null;
   if (!target) return;
-  if (payload.type === "error") { error.value = payload.message ?? "Codex 运行失败"; return; }
-  if (payload.type === "log" && payload.text) { appendTo(target, "status", payload.text); return; }
+  if (payload.type === "error") { clearStatus(target); error.value = payload.message ?? "Codex 运行失败"; save(); return; }
+  if (payload.type === "log" && payload.text) { setStatus(target, payload.text); return; }
   if (payload.type === "complete") {
+    clearStatus(target);
     runningTask.value = null;
     runningSessionId.value = null;
     if (payload.exit_code !== 0) {
@@ -59,12 +72,12 @@ function handleEvent(payload: ChatEvent): void {
   const event = payload.event ?? {};
   const type = String(event.type ?? "");
   if (type === "thread.started" && typeof event.thread_id === "string") target.codexSessionId = event.thread_id;
-  if (type === "turn.started") appendTo(target, "status", "Codex 正在思考…");
-  if (type === "error" && typeof event.message === "string") appendTo(target, "status", event.message);
+  if (type === "turn.started") setStatus(target, "Codex 正在思考…");
+  if (type === "error" && typeof event.message === "string") setStatus(target, event.message);
   if (type === "item.started") {
     const item = (event.item ?? {}) as Record<string, unknown>;
-    if (item.type === "command_execution") appendTo(target, "status", `正在执行：${String(item.command ?? "命令")}`);
-    else if (item.type && item.type !== "agent_message") appendTo(target, "status", `工具调用：${String(item.type)}`);
+    if (item.type === "command_execution") setStatus(target, `正在执行：${String(item.command ?? "命令")}`);
+    else if (item.type && item.type !== "agent_message") setStatus(target, `工具调用：${String(item.type)}`);
   }
   if (type === "item.completed" || type.endsWith("message.completed")) {
     const item = (event.item ?? {}) as Record<string, unknown>;
@@ -72,7 +85,7 @@ function handleEvent(payload: ChatEvent): void {
     if (text) appendTo(target, item.type === "agent_message" ? "assistant" : "tool", text);
     else if (item.type === "command_execution") appendTo(target, "tool", `${String(item.command ?? "命令")}\n${String(item.aggregated_output ?? "")}`.trim());
   }
-  if (type === "turn.completed") appendTo(target, "status", "任务已完成");
+  if (type === "turn.completed") clearStatus(target);
   save();
 }
 async function send(): Promise<void> {

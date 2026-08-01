@@ -19,6 +19,12 @@ try {
   await access(join(tempRoot, "sample-project", "AGENTS.md"));
   await access(join(tempRoot, "sample-project", ".ai-dev-launcher", "project.json"));
   await page.getByText("有什么可以帮你？").waitFor();
+  const chatLayout = await page.evaluate(() => ({
+    composerPosition: getComputedStyle(document.querySelector(".composer-shell")).position,
+    horizontalOverflow: getComputedStyle(document.querySelector(".message-list")).overflowX
+  }));
+  if (chatLayout.composerPosition !== "absolute") throw new Error(`Composer is not floating: ${chatLayout.composerPosition}`);
+  if (chatLayout.horizontalOverflow !== "hidden") throw new Error(`Message list can scroll horizontally: ${chatLayout.horizontalOverflow}`);
   await page.screenshot({ path: resolve(root, "design/v2-phase2-chat-workspace.png") });
 
   await page.getByTestId("environment-check").click();
