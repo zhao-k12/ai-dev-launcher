@@ -73,7 +73,7 @@ onUnmounted(() => dispose?.());
 
 <template>
   <section class="chat-workspace">
-    <div class="conversation"><header class="conversation-header"><div><span class="workspace-kicker">{{ project.name }}</span><h2>{{ active?.name }}</h2></div></header>
+    <div class="conversation">
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
       <div class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "工具" : "状态" }}</span><pre>{{ message.text }}</pre></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>

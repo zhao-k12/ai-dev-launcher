@@ -28,7 +28,7 @@ try {
     title: BrowserWindow.getAllWindows()[0]?.getTitle(),
     hasMenu: Menu.getApplicationMenu() !== null
   }));
-  if (chromeState.title !== "AI Dev Launcher v2.0.5") throw new Error(`Unexpected window title: ${chromeState.title}`);
+  if (chromeState.title !== "AI Dev Launcher v2.0.6") throw new Error(`Unexpected window title: ${chromeState.title}`);
   if (chromeState.hasMenu) throw new Error("Application menu should be hidden");
   await page.getByRole("button", { name: "创建新项目" }).click();
   await page.getByTestId("project-name").fill("installed-project");
