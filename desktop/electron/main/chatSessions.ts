@@ -20,6 +20,18 @@ interface StartInput {
   session_id?: string;
 }
 
+function isRoutineWrapperOutput(line: string): boolean {
+  return [
+    /HEADROOM WRAP: CODEX/i,
+    /^[╔╗╚╝║═\s]+$/u,
+    /^Proxy (?:already running|ready)/i,
+    /^Dashboard:/i,
+    /^Launching CODEX/i,
+    /^OPENAI_BASE_URL=/i,
+    /^Extra args:/i
+  ].some((pattern) => pattern.test(line));
+}
+
 export class ChatSessionManager {
   private active = new Map<string, ChildProcessWithoutNullStreams>();
 
@@ -53,7 +65,11 @@ export class ChatSessionManager {
         const trimmed = line.trim();
         if (!trimmed) continue;
         try { send({ type: "codex", event: JSON.parse(trimmed) }); }
-        catch { send({ type: "log", stream: "stdout", text: trimmed }); }
+        catch {
+          if (!isRoutineWrapperOutput(trimmed)) {
+            send({ type: "log", stream: "stdout", text: trimmed });
+          }
+        }
       }
     });
     child.stderr.on("data", (chunk: Buffer) => {

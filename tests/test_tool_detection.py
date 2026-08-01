@@ -155,3 +155,22 @@ def test_timeout_is_error(tmp_path):
 
     assert result.status is ToolStatus.ERROR
     assert "timed out" in (result.detail or "")
+
+
+def test_default_version_check_uses_detection_environment(tmp_path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "sample").write_text("", encoding="utf-8")
+    captured = {}
+
+    def run(command, **options):
+        captured["environment"] = options.get("env")
+        return subprocess.CompletedProcess(command, 0, "sample 3.0", "")
+
+    monkeypatch.setattr("ai_dev_launcher.services.tools.subprocess.run", run)
+    environment = {"PATH": str(bin_dir), "PATHEXT": "", "NODE_HOME": "private"}
+
+    result = ToolDetectionService([_spec()], environment=environment).check_all()[0]
+
+    assert result.status is ToolStatus.AVAILABLE
+    assert captured["environment"] == environment

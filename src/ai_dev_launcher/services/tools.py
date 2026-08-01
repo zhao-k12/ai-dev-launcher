@@ -147,10 +147,20 @@ class ToolDetectionService:
             for path in executable_candidates(command, self.environment):
                 discovered = True
                 try:
-                    result = self.runner(
-                        [str(path), *spec.version_args],
-                        self.timeout,
-                    )
+                    command_line = [str(path), *spec.version_args]
+                    if self.runner is _run_command and self.environment is not None:
+                        result = subprocess.run(
+                            command_line,
+                            capture_output=True,
+                            text=True,
+                            timeout=self.timeout,
+                            check=False,
+                            encoding="utf-8",
+                            errors="replace",
+                            env=dict(self.environment),
+                        )
+                    else:
+                        result = self.runner(command_line, self.timeout)
                 except subprocess.TimeoutExpired:
                     errors.append(f"{path}: version check timed out")
                     continue

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -15,6 +16,34 @@ from ai_dev_launcher.services.tools import ToolDetectionService
 
 ProcessRunner = Callable[[list[str], Path, Mapping[str, str]], int]
 ProcessStarter = Callable[[list[str], Path, Mapping[str, str]], int]
+
+
+def find_node_runtime_dir(environment: Mapping[str, str]) -> Path | None:
+    """Locate Node even when an Explorer-launched app inherited a stale PATH."""
+
+    executable = shutil.which(
+        "node.exe" if os.name == "nt" else "node",
+        path=environment.get("PATH", ""),
+    )
+    candidates: list[Path] = [Path(executable)] if executable else []
+    if os.name == "nt":
+        for variable in ("ProgramFiles", "LOCALAPPDATA"):
+            base = environment.get(variable) or environment.get(variable.upper())
+            if not base:
+                continue
+            candidates.extend(
+                [
+                    Path(base) / "nodejs" / "node.exe",
+                    Path(base) / "Programs" / "nodejs" / "node.exe",
+                ]
+            )
+        nvm_home = environment.get("NVM_HOME") or environment.get("NvmHome")
+        if nvm_home:
+            candidates.append(Path(nvm_home) / "node.exe")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.parent
+    return None
 
 
 def _run_interactive(
@@ -63,12 +92,16 @@ class LaunchService:
         environment: Mapping[str, str] | None = None,
         private_tool_root: Path | None = None,
     ) -> None:
+        launch_environment = dict(environment or os.environ)
+        self.node_runtime_dir = find_node_runtime_dir(launch_environment)
         if tool_service is None and private_tool_root is not None:
             private_bins = [
                 private_tool_root / "codex" / "node_modules" / ".bin",
                 private_tool_root / "headroom" / "bin",
             ]
-            detection_environment = dict(environment or os.environ)
+            if self.node_runtime_dir:
+                private_bins.append(self.node_runtime_dir)
+            detection_environment = launch_environment
             detection_environment["PATH"] = os.pathsep.join(
                 [*(str(path) for path in private_bins), detection_environment.get("PATH", "")]
             )
@@ -114,6 +147,8 @@ class LaunchService:
             command = (str(codex.path), *codex_args)
             tool_paths = (str(Path(codex.path).parent),)
 
+        if self.node_runtime_dir:
+            tool_paths = (*tool_paths, str(self.node_runtime_dir))
         path_prepend = tuple(dict.fromkeys(tool_paths))
         overrides = (
             ("HEADROOM_TELEMETRY", "off"),

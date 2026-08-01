@@ -7,7 +7,7 @@ import pytest
 from ai_dev_launcher.domain.project import Project
 from ai_dev_launcher.domain.tool import ToolResult, ToolStatus
 from ai_dev_launcher.errors import LaunchError
-from ai_dev_launcher.services.launch import LaunchService
+from ai_dev_launcher.services.launch import LaunchService, find_node_runtime_dir
 
 
 class FakeTools:
@@ -149,3 +149,16 @@ def test_missing_project_directory_is_rejected(tmp_path):
 
     with pytest.raises(LaunchError, match="does not exist"):
         service.build_plan(project)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows Node discovery")
+def test_node_runtime_is_found_when_desktop_path_is_stale(tmp_path):
+    node = tmp_path / "Programs" / "nodejs" / "node.exe"
+    node.parent.mkdir(parents=True)
+    node.write_bytes(b"node")
+
+    result = find_node_runtime_dir(
+        {"PATH": "", "ProgramFiles": str(tmp_path / "Programs")}
+    )
+
+    assert result == node.parent
