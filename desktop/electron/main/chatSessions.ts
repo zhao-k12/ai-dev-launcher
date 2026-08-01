@@ -4,6 +4,7 @@ import { delimiter } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type { BrowserWindow } from "electron";
 import { callPython } from "./pythonBridge.js";
+import { isExpectedHeadroomWebSocketFallback } from "./chatFilters.js";
 
 interface LaunchPlan {
   cwd: string;
@@ -64,7 +65,12 @@ export class ChatSessionManager {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-        try { send({ type: "codex", event: JSON.parse(trimmed) }); }
+        try {
+          const event = JSON.parse(trimmed) as Record<string, unknown>;
+          if (!isExpectedHeadroomWebSocketFallback(event)) {
+            send({ type: "codex", event });
+          }
+        }
         catch {
           if (!isRoutineWrapperOutput(trimmed)) {
             send({ type: "log", stream: "stdout", text: trimmed });
