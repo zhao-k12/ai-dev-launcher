@@ -177,6 +177,18 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("does not attach historical images when reopening a conversation", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
+      id: "session-1", name: "历史会话", updatedAt: new Date().toISOString(),
+      messages: [{ id: "answer-1", role: "assistant", text: "图片已经生成在关键帧目录。" }]
+    }]));
+    const view = await render();
+    expect(window.launcher.getRecentImages).not.toHaveBeenCalled();
+    expect(view.host.querySelector(".artifact-gallery")).toBeNull();
+    view.unmount();
+  });
+
   it("accepts a pasted image", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     vi.mocked(window.launcher.saveClipboardImage).mockResolvedValue({ path: "C:\\temp\\image.png" });

@@ -42,12 +42,6 @@ function load(): void {
   } catch { sessions.value = []; }
   if (!sessions.value.length) newSession(); else activeId.value = sessions.value[0].id;
   void scrollToLatest();
-  const current = sessions.value.find((item) => item.id === activeId.value);
-  const lastAnswer = current ? [...current.messages].reverse().find((item) => item.role === "assistant") : undefined;
-  if (current && lastAnswer && !lastAnswer.artifacts?.length && /图片|图像|关键帧|\b(?:png|jpe?g|webp|gif)\b/i.test(lastAnswer.text)) {
-    const completedAt = Date.parse(current.updatedAt) / 1000;
-    if (Number.isFinite(completedAt)) void attachGeneratedImages(current, props.project.name, completedAt - 60 * 60);
-  }
 }
 function newSession(): void { const item: Session = { id: uid(), name: "新会话", messages: [], updatedAt: new Date().toISOString() }; sessions.value.unshift(item); activeId.value = item.id; save(); void scrollToLatest(); }
 function appendTo(session: Session | null, role: Message["role"], text: string): void { if (!session) return; session.messages.push({ id: uid(), role, text }); session.updatedAt = new Date().toISOString(); save(); if (session.id === activeId.value) void scrollToLatest(); }
