@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { delimiter } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type { BrowserWindow } from "electron";
 import { callPython } from "./pythonBridge.js";
 
@@ -31,14 +32,21 @@ export class ChatSessionManager {
     environment.PATH = [...plan.path_prepend, environment.PATH ?? ""].filter(Boolean).join(delimiter);
     for (const [key, value] of Object.entries(plan.environment_overrides)) environment[key] = value;
     const child = spawn(plan.command[0], plan.command.slice(1), { cwd: plan.cwd, env: environment, windowsHide: true });
-    child.stdin.end();
+    // Codex 0.146+ inspects piped stdin after processing the positional prompt.
+    // An immediately closed, empty pipe makes the wrapped process finish with
+    // exit code 1 even when the turn itself completed successfully. A blank
+    // line explicitly terminates the additional-input phase.
+    child.stdin.end("\n");
     this.active.set(taskId, child);
     let stdout = "";
     let stderr = "";
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
+    const stderrLines: string[] = [];
     const send = (event: Record<string, unknown>) => this.window.webContents.send("chat:event", { task_id: taskId, ...event });
 
     child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
+      stdout += stdoutDecoder.write(chunk);
       const lines = stdout.split(/\r?\n/);
       stdout = lines.pop() ?? "";
       for (const line of lines) {
@@ -49,17 +57,23 @@ export class ChatSessionManager {
       }
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
+      stderr += stderrDecoder.write(chunk);
       const lines = stderr.split(/\r?\n/);
       stderr = lines.pop() ?? "";
-      for (const line of lines) if (line.trim()) send({ type: "log", stream: "stderr", text: line.trim() });
+      for (const line of lines) if (line.trim()) stderrLines.push(line.trim());
     });
     child.on("error", (error) => send({ type: "error", message: error.message }));
     child.on("close", (code) => {
+      stdout += stdoutDecoder.end();
+      stderr += stderrDecoder.end();
       if (stdout.trim()) send({ type: "log", stream: "stdout", text: stdout.trim() });
-      if (stderr.trim()) send({ type: "log", stream: "stderr", text: stderr.trim() });
+      if (stderr.trim()) stderrLines.push(stderr.trim());
       this.active.delete(taskId);
-      send({ type: "complete", exit_code: code ?? -1 });
+      const meaningfulError = stderrLines
+        .filter((line) => !/\b(?:WARN|INFO)\b/.test(line))
+        .slice(-4)
+        .join("\n");
+      send({ type: "complete", exit_code: code ?? -1, message: meaningfulError || undefined });
     });
     return { task_id: taskId };
   }

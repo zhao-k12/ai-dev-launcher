@@ -36,7 +36,17 @@ function handleEvent(payload: ChatEvent): void {
   if (!target) return;
   if (payload.type === "error") { error.value = payload.message ?? "Codex 运行失败"; return; }
   if (payload.type === "log" && payload.text) { appendTo(target, "status", payload.text); return; }
-  if (payload.type === "complete") { runningTask.value = null; runningSessionId.value = null; if (payload.exit_code !== 0) error.value = `Codex 已退出，代码 ${payload.exit_code}`; save(); return; }
+  if (payload.type === "complete") {
+    runningTask.value = null;
+    runningSessionId.value = null;
+    if (payload.exit_code !== 0) {
+      error.value = payload.message
+        ? `Codex 运行失败：${payload.message}`
+        : `Codex 已退出，代码 ${payload.exit_code}`;
+    }
+    save();
+    return;
+  }
   const event = payload.event ?? {};
   const type = String(event.type ?? "");
   if (type === "thread.started" && typeof event.thread_id === "string") target.codexSessionId = event.thread_id;
