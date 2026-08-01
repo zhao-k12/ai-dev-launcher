@@ -73,11 +73,27 @@ onUnmounted(() => dispose?.());
 
 <template>
   <section class="chat-workspace">
-    <div class="conversation"><header class="conversation-header"><div><span class="workspace-kicker">{{ project.name }}</span><h2>{{ active?.name }}</h2></div><div class="conversation-meta"><span>模型：Codex 默认</span><div class="permission-control"><label>权限<select v-model="permission" :disabled="!!runningTask"><option value="standard">标准模式</option><option value="full">完全访问</option></select></label></div></div></header>
+    <div class="conversation"><header class="conversation-header"><div><span class="workspace-kicker">{{ project.name }}</span><h2>{{ active?.name }}</h2></div></header>
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
       <div class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "工具" : "状态" }}</span><pre>{{ message.text }}</pre></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
-      <footer class="composer"><textarea v-model="prompt" data-testid="chat-prompt" placeholder="输入中文任务，Enter 发送，Shift+Enter 换行" @keydown.enter.exact.prevent="send"></textarea><button v-if="runningTask" class="button danger solid" data-testid="stop-chat" @click="stop">停止</button><button v-else class="button primary" data-testid="send-chat" :disabled="runtime?.status !== 'ready' || !prompt.trim()" @click="send">发送</button></footer>
+      <footer class="composer-shell">
+        <div class="composer-card">
+          <textarea v-model="prompt" data-testid="chat-prompt" placeholder="随心输入" @keydown.enter.exact.prevent="send"></textarea>
+          <div class="composer-toolbar">
+            <div class="composer-tools">
+              <span class="composer-plus" aria-hidden="true">＋</span>
+              <label class="composer-permission" :class="{ elevated: permission === 'full' }"><span aria-hidden="true">◉</span><select v-model="permission" :disabled="!!runningTask"><option value="standard">标准模式</option><option value="full">完全访问</option></select></label>
+            </div>
+            <div class="composer-actions">
+              <span class="composer-model">Codex 默认</span>
+              <button v-if="runningTask" class="composer-send stop" data-testid="stop-chat" title="停止" @click="stop"><span class="sr-only">停止</span><span aria-hidden="true">■</span></button>
+              <button v-else class="composer-send" data-testid="send-chat" title="发送" :disabled="runtime?.status !== 'ready' || !prompt.trim()" @click="send"><span class="sr-only">发送</span><span aria-hidden="true">↑</span></button>
+            </div>
+          </div>
+        </div>
+        <small class="composer-hint">Enter 发送 · Shift+Enter 换行</small>
+      </footer>
     </div>
   </section>
 </template>
