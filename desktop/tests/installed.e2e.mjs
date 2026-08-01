@@ -40,11 +40,6 @@ try {
   await access(join(projectDir, "AGENTS.md"));
   await access(join(projectDir, ".ai-dev-launcher", "project.json"));
 
-  await page.getByRole("button", { name: "终端", exact: true }).click();
-  await page.getByTestId("terminal-command").fill("Write-Output packaged-ok");
-  await page.getByRole("button", { name: "运行", exact: true }).click();
-  await page.getByText("packaged-ok", { exact: true }).waitFor();
-  await page.getByText("退出码 0").waitFor();
 
   await page.screenshot({
     path: resolve(root, "design/gui-installed.png")

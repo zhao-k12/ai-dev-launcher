@@ -116,16 +116,4 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
-  it("runs PowerShell and shows Headroom savings", async () => {
-    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
-    const view = await render();
-    clickButton(view.host, "终端"); await nextTick();
-    setInput(view.host.querySelector('[data-testid="terminal-command"]') as HTMLInputElement, "pwd"); await nextTick();
-    clickButton(view.host, "运行"); await flush();
-    expect(window.launcher.runTerminal).toHaveBeenCalledWith("my-app", "pwd");
-    expect(view.host.textContent).toContain("退出码 0");
-    clickButton(view.host, "节省"); await nextTick();
-    expect(view.host.textContent).toContain("1,200");
-    view.unmount();
-  });
 });

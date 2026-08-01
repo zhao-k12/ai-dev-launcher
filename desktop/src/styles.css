@@ -228,7 +228,7 @@ h1, h2, p { margin-top: 0; }
 .toast.success { color: #176a32; background: #effbf2; border: 1px solid #b8e2c4; }
 .toast.error { color: #9c2424; background: #fff2f2; border: 1px solid #efb8b8; }
 
-.chat-workspace { min-width: 0; min-height: 0; display: grid; grid-template-columns: 175px minmax(360px,1fr) 340px; background: rgba(255,255,255,.42); }
+.chat-workspace { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr); background: rgba(255,255,255,.42); }
 .session-sidebar { min-width: 0; padding: 18px 12px; border-right: 1px solid #dce2eb; background: rgba(248,250,253,.75); }
 .session-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 12px; }
 .session-list { display: grid; gap: 5px; }

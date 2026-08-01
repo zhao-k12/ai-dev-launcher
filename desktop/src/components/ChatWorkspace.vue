@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { ChatEvent, Project, RuntimeStatus } from "../types";
-import DeveloperPanel from "./DeveloperPanel.vue";
 
 type Permission = "standard" | "full";
 interface Message { id: string; role: "user" | "assistant" | "tool" | "status"; text: string; }
@@ -14,7 +13,6 @@ const permission = ref<Permission>("standard");
 const runningTask = ref<string | null>(null);
 const runningSessionId = ref<string | null>(null);
 const error = ref("");
-const developerPanel = ref<InstanceType<typeof DeveloperPanel> | null>(null);
 let dispose: (() => void) | undefined;
 const active = computed(() => sessions.value.find((item) => item.id === activeId.value) ?? null);
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
@@ -26,8 +24,6 @@ function load(): void {
   if (!sessions.value.length) newSession(); else activeId.value = sessions.value[0].id;
 }
 function newSession(): void { const item: Session = { id: uid(), name: "新会话", messages: [], updatedAt: new Date().toISOString() }; sessions.value.unshift(item); activeId.value = item.id; save(); }
-function renameSession(session: Session): void { const name = window.prompt("重命名会话", session.name); if (name?.trim()) { session.name = name.trim(); save(); } }
-function deleteSession(session: Session): void { sessions.value = sessions.value.filter((item) => item.id !== session.id); if (!sessions.value.length) newSession(); else if (activeId.value === session.id) activeId.value = sessions.value[0].id; save(); }
 function appendTo(session: Session | null, role: Message["role"], text: string): void { if (!session) return; session.messages.push({ id: uid(), role, text }); session.updatedAt = new Date().toISOString(); save(); }
 function append(role: Message["role"], text: string): void { appendTo(active.value, role, text); }
 function eventText(event: Record<string, unknown>): string | null {
@@ -40,7 +36,7 @@ function handleEvent(payload: ChatEvent): void {
   if (!target) return;
   if (payload.type === "error") { error.value = payload.message ?? "Codex 运行失败"; return; }
   if (payload.type === "log" && payload.text) { appendTo(target, "status", payload.text); return; }
-  if (payload.type === "complete") { runningTask.value = null; runningSessionId.value = null; if (payload.exit_code !== 0) error.value = `Codex 已退出，代码 ${payload.exit_code}`; save(); void developerPanel.value?.refresh(); return; }
+  if (payload.type === "complete") { runningTask.value = null; runningSessionId.value = null; if (payload.exit_code !== 0) error.value = `Codex 已退出，代码 ${payload.exit_code}`; save(); return; }
   const event = payload.event ?? {};
   const type = String(event.type ?? "");
   if (type === "thread.started" && typeof event.thread_id === "string") target.codexSessionId = event.thread_id;
@@ -77,12 +73,11 @@ onUnmounted(() => dispose?.());
 
 <template>
   <section class="chat-workspace">
-    <aside class="session-sidebar"><div class="session-heading"><strong>会话</strong><button class="icon-button" title="新建会话" @click="newSession">＋</button></div><div class="session-list"><button v-for="session in sessions" :key="session.id" :class="{ active: session.id === activeId }" @click="activeId = session.id"><span>{{ session.name }}</span><small><i @click.stop="renameSession(session)">重命名</i><i @click.stop="deleteSession(session)">删除</i></small></button></div></aside>
     <div class="conversation"><header class="conversation-header"><div><span class="workspace-kicker">{{ project.name }}</span><h2>{{ active?.name }}</h2></div><div class="conversation-meta"><span>模型：Codex 默认</span><div class="permission-control"><label>权限<select v-model="permission" :disabled="!!runningTask"><option value="standard">标准模式</option><option value="full">完全访问</option></select></label></div></div></header>
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
       <div class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><strong>向 Codex 描述你想完成的任务</strong><span>对话只作用于当前项目，并通过项目专属 Headroom 环境运行。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "工具" : "状态" }}</span><pre>{{ message.text }}</pre></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
       <footer class="composer"><textarea v-model="prompt" data-testid="chat-prompt" placeholder="输入中文任务，Enter 发送，Shift+Enter 换行" @keydown.enter.exact.prevent="send"></textarea><button v-if="runningTask" class="button danger solid" data-testid="stop-chat" @click="stop">停止</button><button v-else class="button primary" data-testid="send-chat" :disabled="runtime?.status !== 'ready' || !prompt.trim()" @click="send">发送</button></footer>
-    </div><DeveloperPanel ref="developerPanel" :project="project" :headroom-port="runtime?.headroom_port" />
+    </div>
   </section>
 </template>

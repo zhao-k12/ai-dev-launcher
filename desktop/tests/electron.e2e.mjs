@@ -20,14 +20,6 @@ try {
   await access(join(tempRoot, "sample-project", ".ai-dev-launcher", "project.json"));
   await page.getByText("向 Codex 描述你想完成的任务").waitFor();
   await page.screenshot({ path: resolve(root, "design/v2-phase2-chat-workspace.png") });
-  await page.getByRole("button", { name: "终端", exact: true }).click();
-  await page.getByTestId("terminal-command").fill("Set-Content -LiteralPath 'note.txt' -Value 'hello'");
-  await page.getByRole("button", { name: "运行", exact: true }).click();
-  await page.getByText("退出码 0").waitFor();
-  await page.getByRole("button", { name: /改动/ }).click();
-  await page.getByText("note.txt", { exact: false }).waitFor();
-  await page.getByRole("button", { name: "节省", exact: true }).click();
-  await page.screenshot({ path: resolve(root, "design/v2-phase3-workbench.png") });
 
   await page.getByTestId("environment-check").click();
   await page.getByText("进程级隔离 · 不修改 Codex 桌面端").waitFor();
