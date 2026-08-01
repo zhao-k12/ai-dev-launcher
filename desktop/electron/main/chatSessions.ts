@@ -19,6 +19,7 @@ interface StartInput {
   prompt: string;
   permission: "standard" | "full";
   session_id?: string;
+  images?: string[];
 }
 
 function isRoutineWrapperOutput(line: string): boolean {

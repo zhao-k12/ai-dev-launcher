@@ -28,7 +28,7 @@ function setInput(element: HTMLInputElement, value: string): void { element.valu
 
 describe("App v2 Phase 1", () => {
   beforeEach(() => {
-    vi.clearAllMocks(); document.body.innerHTML = "";
+    vi.clearAllMocks(); document.body.innerHTML = ""; localStorage.clear();
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [], default_project: null });
     vi.mocked(window.launcher.bootstrapRuntime).mockResolvedValue(runtime);
     vi.mocked(window.launcher.getRuntimeStatus).mockResolvedValue(runtime);
@@ -115,6 +115,34 @@ describe("App v2 Phase 1", () => {
     chatListener?.({ task_id: input.task_id!, type: "complete", exit_code: 0 });
     await nextTick();
     expect(view.host.textContent).toContain("这是项目说明。");
+    view.unmount();
+  });
+
+  it("collapses tool and code output by default", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
+    localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
+      id: "session-1", name: "test", updatedAt: new Date().toISOString(),
+      messages: [{ id: "tool-1", role: "tool", text: "large code output" }]
+    }]));
+    const view = await render();
+    const details = view.host.querySelector("details.tool-details") as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.open).toBe(false);
+    expect(details.querySelector("summary")?.textContent).toContain("点击查看");
+    view.unmount();
+  });
+
+  it("accepts a pasted image", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
+    vi.mocked(window.launcher.saveClipboardImage).mockResolvedValue({ path: "C:\\temp\\image.png" });
+    const view = await render();
+    const file = new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" });
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { files: [file] } });
+    view.host.querySelector('[data-testid="chat-prompt"]')?.dispatchEvent(event);
+    await flush();
+    expect(window.launcher.saveClipboardImage).toHaveBeenCalledOnce();
+    expect(view.host.querySelector(".composer-images img")).not.toBeNull();
     view.unmount();
   });
 

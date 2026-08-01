@@ -92,7 +92,8 @@ export interface LauncherApi {
   getRuntimeStatus(): Promise<RuntimeStatus>;
   updatePrivateTools(): Promise<{ tools: Array<{ key: string; status: string; detail: string }> }>;
   getCodexUsage(): Promise<CodexUsage>;
-  startChat(input: { task_id?: string; name: string; prompt: string; permission: "standard" | "full"; session_id?: string }): Promise<{ task_id: string }>;
+  startChat(input: { task_id?: string; name: string; prompt: string; permission: "standard" | "full"; session_id?: string; images?: string[] }): Promise<{ task_id: string }>;
+  saveClipboardImage(input: { data_url: string; name?: string }): Promise<{ path: string }>;
   stopChat(taskId: string): Promise<{ stopped: boolean }>;
   onChatEvent(callback: (event: ChatEvent) => void): () => void;
   getFileTree(name: string): Promise<{ items: FileTreeItem[]; truncated: boolean }>;

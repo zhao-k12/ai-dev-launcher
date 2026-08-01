@@ -1,4 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { callPython } from "./pythonBridge.js";
@@ -52,6 +54,18 @@ app.whenReady().then(() => {
   ipcMain.handle("runtime:status", () => callPython("runtime.status"));
   ipcMain.handle("runtime:update", () => callPython("runtime.update"));
   ipcMain.handle("account:usage", () => readCodexUsage());
+  ipcMain.handle("chat:save-image", async (_event, payload) => {
+    const match = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(payload?.data_url ?? ""));
+    if (!match) throw new Error("Unsupported clipboard image format");
+    const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
+    const contents = Buffer.from(match[2], "base64");
+    if (contents.byteLength > 10 * 1024 * 1024) throw new Error("Clipboard image exceeds the 10 MB limit");
+    const directory = join(app.getPath("temp"), "ai-dev-launcher", "clipboard-images");
+    await mkdir(directory, { recursive: true });
+    const path = join(directory, `${randomUUID()}.${extensions[match[1]]}`);
+    await writeFile(path, contents);
+    return { path };
+  });
   ipcMain.handle("workspace:tree", (_event, payload) => callPython("workspace.tree", payload));
   ipcMain.handle("workspace:read", (_event, payload) => callPython("workspace.read", payload));
   ipcMain.handle("workspace:diff", (_event, payload) => callPython("workspace.diff", payload));

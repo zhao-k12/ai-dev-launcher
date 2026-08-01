@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("launcher", {
   updatePrivateTools: () => ipcRenderer.invoke("runtime:update"),
   getCodexUsage: () => ipcRenderer.invoke("account:usage"),
   startChat: (payload) => ipcRenderer.invoke("chat:start", payload),
+  saveClipboardImage: (payload) => ipcRenderer.invoke("chat:save-image", payload),
   stopChat: (taskId) => ipcRenderer.invoke("chat:stop", { task_id: taskId }),
   onChatEvent: (callback) => {
     const listener = (_event, payload) => callback(payload);
