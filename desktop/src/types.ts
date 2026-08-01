@@ -50,6 +50,7 @@ export interface ChatEvent {
   text?: string;
   message?: string;
   exit_code?: number;
+  cancelled?: boolean;
 }
 export interface FileTreeItem { path: string; name: string; kind: "file" | "directory"; }
 export interface GitDiffResult { diff: string; status: string[]; }

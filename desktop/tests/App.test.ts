@@ -100,6 +100,10 @@ describe("App v2 Phase 1", () => {
     const taskId = vi.mocked(window.launcher.startChat).mock.calls[0][0].task_id!;
     clickButton(view.host, "停止"); await flush();
     expect(window.launcher.stopChat).toHaveBeenCalledWith(taskId);
+    chatListener?.({ task_id: taskId, type: "complete", exit_code: 1, cancelled: true });
+    await nextTick();
+    expect(view.host.textContent).not.toContain("Codex 已退出，代码 1");
+    expect(view.host.querySelector(".chat-error")).toBeNull();
     view.unmount();
   });
 

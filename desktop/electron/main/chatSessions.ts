@@ -37,6 +37,7 @@ function isRoutineWrapperOutput(line: string): boolean {
 export class ChatSessionManager {
   private active = new Map<string, ChildProcessWithoutNullStreams>();
   private activeProjects = new Map<string, string>();
+  private cancelled = new Set<string>();
 
   constructor(private readonly window: BrowserWindow) {}
 
@@ -87,7 +88,9 @@ export class ChatSessionManager {
       stderr = lines.pop() ?? "";
       for (const line of lines) if (line.trim()) stderrLines.push(line.trim());
     });
-    child.on("error", (error) => send({ type: "error", message: error.message }));
+    child.on("error", (error) => {
+      if (!this.cancelled.has(taskId)) send({ type: "error", message: error.message });
+    });
     child.on("close", (code) => {
       stdout += stdoutDecoder.end();
       stderr += stderrDecoder.end();
@@ -95,11 +98,12 @@ export class ChatSessionManager {
       if (stderr.trim()) stderrLines.push(stderr.trim());
       this.active.delete(taskId);
       this.activeProjects.delete(taskId);
+      const cancelled = this.cancelled.delete(taskId);
       const meaningfulError = stderrLines
         .filter((line) => !/\b(?:WARN|INFO)\b/.test(line))
         .slice(-4)
         .join("\n");
-      send({ type: "complete", exit_code: code ?? -1, message: meaningfulError || undefined });
+      send({ type: "complete", exit_code: code ?? -1, message: meaningfulError || undefined, cancelled });
     });
     return { task_id: taskId };
   }
@@ -107,6 +111,7 @@ export class ChatSessionManager {
   stop(taskId: string): { stopped: boolean } {
     const child = this.active.get(taskId);
     if (!child) return { stopped: false };
+    this.cancelled.add(taskId);
     this.stopProcess(child);
     return { stopped: true };
   }
@@ -115,6 +120,7 @@ export class ChatSessionManager {
     for (const child of this.active.values()) this.stopProcess(child);
     this.active.clear();
     this.activeProjects.clear();
+    this.cancelled.clear();
   }
 
   hasActiveProject(name: string): boolean {

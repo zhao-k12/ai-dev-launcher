@@ -61,7 +61,7 @@ function handleEvent(payload: ChatEvent): void {
     clearStatus(target);
     runningTask.value = null;
     runningSessionId.value = null;
-    if (payload.exit_code !== 0) {
+    if (!payload.cancelled && payload.exit_code !== 0) {
       error.value = payload.message
         ? `Codex 运行失败：${payload.message}`
         : `Codex 已退出，代码 ${payload.exit_code}`;
