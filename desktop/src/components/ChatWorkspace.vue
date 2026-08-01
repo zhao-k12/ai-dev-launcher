@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import type { ChatEvent, Project, RuntimeStatus } from "../types";
+import type { ChatEvent, ImageArtifact, Project, RuntimeStatus } from "../types";
+import ArtifactGallery from "./ArtifactGallery.vue";
 import MarkdownMessage from "./MarkdownMessage.vue";
 
 type Permission = "standard" | "full";
-interface Message { id: string; role: "user" | "assistant" | "tool" | "status"; text: string; }
+interface Message { id: string; role: "user" | "assistant" | "tool" | "status"; text: string; artifacts?: ImageArtifact[]; }
 interface Session { id: string; codexSessionId?: string; name: string; messages: Message[]; updatedAt: string; }
 interface PendingImage { path: string; name: string; preview: string; }
 const props = defineProps<{ project: Project; runtime: RuntimeStatus | null }>();
@@ -15,6 +16,8 @@ const images = ref<PendingImage[]>([]);
 const permission = ref<Permission>("standard");
 const runningTask = ref<string | null>(null);
 const runningSessionId = ref<string | null>(null);
+const runningStartedAt = ref<number | null>(null);
+const runningProjectName = ref<string | null>(null);
 const error = ref("");
 const messageList = ref<HTMLElement | null>(null);
 let dispose: (() => void) | undefined;
@@ -37,6 +40,12 @@ function load(): void {
   } catch { sessions.value = []; }
   if (!sessions.value.length) newSession(); else activeId.value = sessions.value[0].id;
   void scrollToLatest();
+  const current = sessions.value.find((item) => item.id === activeId.value);
+  const lastAnswer = current ? [...current.messages].reverse().find((item) => item.role === "assistant") : undefined;
+  if (current && lastAnswer && !lastAnswer.artifacts?.length && /图片|图像|关键帧|\b(?:png|jpe?g|webp|gif)\b/i.test(lastAnswer.text)) {
+    const completedAt = Date.parse(current.updatedAt) / 1000;
+    if (Number.isFinite(completedAt)) void attachGeneratedImages(current, props.project.name, completedAt - 60 * 60);
+  }
 }
 function newSession(): void { const item: Session = { id: uid(), name: "新会话", messages: [], updatedAt: new Date().toISOString() }; sessions.value.unshift(item); activeId.value = item.id; save(); void scrollToLatest(); }
 function appendTo(session: Session | null, role: Message["role"], text: string): void { if (!session) return; session.messages.push({ id: uid(), role, text }); session.updatedAt = new Date().toISOString(); save(); if (session.id === activeId.value) void scrollToLatest(); }
@@ -51,6 +60,22 @@ function eventText(event: Record<string, unknown>): string | null {
   const item = (event.item ?? {}) as Record<string, unknown>;
   return typeof item.text === "string" ? item.text : typeof event.text === "string" ? event.text : null;
 }
+async function attachGeneratedImages(session: Session, projectName: string, since: number): Promise<void> {
+  try {
+    const result = await window.launcher.getRecentImages(projectName, Math.max(0, since - 3), 16);
+    if (!result.images.length) return;
+    let message = [...session.messages].reverse().find((item) => item.role === "assistant");
+    if (!message) {
+      message = { id: uid(), role: "assistant", text: "已生成以下图片：" };
+      session.messages.push(message);
+    }
+    const existing = new Set((message.artifacts ?? []).map((item) => item.path));
+    message.artifacts = [...(message.artifacts ?? []), ...result.images.filter((item) => !existing.has(item.path))];
+    session.updatedAt = new Date().toISOString();
+    save();
+    if (session.id === activeId.value) void scrollToLatest();
+  } catch { /* Image previews are optional and must not turn a completed task into an error. */ }
+}
 function handleEvent(payload: ChatEvent): void {
   if (payload.task_id !== runningTask.value) return;
   const target = sessions.value.find((item) => item.id === runningSessionId.value) ?? null;
@@ -58,14 +83,19 @@ function handleEvent(payload: ChatEvent): void {
   if (payload.type === "error") { clearStatus(target); error.value = payload.message ?? "Codex 运行失败"; save(); return; }
   if (payload.type === "log" && payload.text) { setStatus(target, payload.text); return; }
   if (payload.type === "complete") {
+    const startedAt = runningStartedAt.value;
+    const projectName = runningProjectName.value;
     clearStatus(target);
     runningTask.value = null;
     runningSessionId.value = null;
+    runningStartedAt.value = null;
+    runningProjectName.value = null;
     if (!payload.cancelled && payload.exit_code !== 0) {
       error.value = payload.message
         ? `Codex 运行失败：${payload.message}`
         : `Codex 已退出，代码 ${payload.exit_code}`;
     }
+    if (!payload.cancelled && payload.exit_code === 0 && startedAt && projectName) void attachGeneratedImages(target, projectName, startedAt);
     save();
     return;
   }
@@ -95,8 +125,9 @@ async function send(): Promise<void> {
   if (active.value.name === "新会话") active.value.name = text.slice(0, 24);
   append("user", text); append("status", "Codex 正在思考和执行…");
   const taskId = uid(); runningTask.value = taskId; runningSessionId.value = active.value.id;
+  runningStartedAt.value = Date.now() / 1000; runningProjectName.value = props.project.name;
   try { await window.launcher.startChat({ task_id: taskId, name: props.project.name, prompt: text, permission: permission.value, session_id: active.value.codexSessionId, images: imagePaths }); }
-  catch (reason) { runningTask.value = null; runningSessionId.value = null; error.value = reason instanceof Error ? reason.message : String(reason); }
+  catch (reason) { runningTask.value = null; runningSessionId.value = null; runningStartedAt.value = null; runningProjectName.value = null; error.value = reason instanceof Error ? reason.message : String(reason); }
 }
 function fileAsDataUrl(file: File): Promise<string> { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); }); }
 async function paste(event: ClipboardEvent): Promise<void> {
@@ -123,7 +154,7 @@ onUnmounted(() => dispose?.());
   <section class="chat-workspace">
     <div class="conversation">
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
-      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><MarkdownMessage v-else-if="message.role === 'assistant'" :content="message.text" /><pre v-else>{{ message.text }}</pre></article></div>
+      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><template v-else-if="message.role === 'assistant'"><MarkdownMessage :content="message.text" /><ArtifactGallery v-if="message.artifacts?.length" :project-name="project.name" :images="message.artifacts" /></template><pre v-else>{{ message.text }}</pre></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
       <footer class="composer-shell">
         <div class="composer-card">

@@ -53,6 +53,7 @@ export interface ChatEvent {
   cancelled?: boolean;
 }
 export interface FileTreeItem { path: string; name: string; kind: "file" | "directory"; }
+export interface ImageArtifact { path: string; name: string; size: number; modified_at: number; }
 export interface GitDiffResult { diff: string; status: string[]; }
 export interface TerminalResult { command: string; stdout: string; stderr: string; exit_code: number; }
 export interface HeadroomStats { available: boolean; tokens_saved: number; savings_percent: number; requests: number; }
@@ -101,6 +102,8 @@ export interface LauncherApi {
   onChatEvent(callback: (event: ChatEvent) => void): () => void;
   getFileTree(name: string): Promise<{ items: FileTreeItem[]; truncated: boolean }>;
   readFile(name: string, path: string): Promise<{ path: string; content: string }>;
+  getRecentImages(name: string, since: number, limit?: number): Promise<{ images: ImageArtifact[] }>;
+  getImagePreview(name: string, path: string): Promise<{ data_url: string; width: number; height: number }>;
   getGitDiff(name: string, path?: string): Promise<GitDiffResult>;
   stageFile(name: string, path: string): Promise<{ path: string; status: string }>;
   restoreFile(name: string, path: string): Promise<{ path: string; status: string }>;

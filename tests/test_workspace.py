@@ -36,3 +36,18 @@ def test_git_stage_and_restore(tmp_path):
     assert workspace.stage("file.txt")["status"] == "accepted"
     path.write_text("changed again\n", encoding="utf-8")
     assert workspace.restore("file.txt")["status"] == "restored"
+
+
+def test_recent_images_and_preview_path_stay_inside_project(tmp_path):
+    image_dir = tmp_path / "关键帧"
+    image_dir.mkdir()
+    image = image_dir / "S01.png"
+    image.write_bytes(b"png")
+    workspace = service(tmp_path)
+
+    result = workspace.recent_images(0)
+
+    assert result["images"][0]["path"] == "关键帧/S01.png"
+    assert workspace.image_path("关键帧/S01.png")["path"] == str(image.resolve())
+    with pytest.raises(ValueError):
+        workspace.image_path("../outside.png")

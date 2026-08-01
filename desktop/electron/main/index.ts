@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell } from "electron";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -84,6 +84,15 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("workspace:tree", (_event, payload) => callPython("workspace.tree", payload));
   ipcMain.handle("workspace:read", (_event, payload) => callPython("workspace.read", payload));
+  ipcMain.handle("workspace:images", (_event, payload) => callPython("workspace.images", payload));
+  ipcMain.handle("workspace:image", async (_event, payload) => {
+    const result = await callPython<{ path: string }>("workspace.image-path", payload);
+    const source = nativeImage.createFromPath(result.path);
+    if (source.isEmpty()) throw new Error("图片无法读取或格式不受支持");
+    const size = source.getSize();
+    const preview = size.width > 1600 ? source.resize({ width: 1600, quality: "good" }) : source;
+    return { data_url: `data:image/jpeg;base64,${preview.toJPEG(84).toString("base64")}`, width: size.width, height: size.height };
+  });
   ipcMain.handle("workspace:diff", (_event, payload) => callPython("workspace.diff", payload));
   ipcMain.handle("workspace:stage", (_event, payload) => callPython("workspace.stage", payload));
   ipcMain.handle("workspace:restore", (_event, payload) => callPython("workspace.restore", payload));

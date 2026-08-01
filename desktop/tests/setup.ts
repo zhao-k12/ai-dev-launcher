@@ -19,6 +19,8 @@ Object.defineProperty(window, "launcher", {
     onChatEvent: vi.fn(() => () => undefined),
     getFileTree: vi.fn(),
     readFile: vi.fn(),
+    getRecentImages: vi.fn(),
+    getImagePreview: vi.fn(),
     getGitDiff: vi.fn(),
     stageFile: vi.fn(),
     restoreFile: vi.fn(),

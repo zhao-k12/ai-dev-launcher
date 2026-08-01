@@ -1,5 +1,5 @@
 import { _electron as electron } from "playwright";
-import { access, mkdir, mkdtemp } from "node:fs/promises";
+import { access, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -20,6 +20,14 @@ try {
   await page.getByText("已创建并初始化").waitFor();
   await access(join(tempRoot, "sample-project", "AGENTS.md"));
   await access(join(tempRoot, "sample-project", ".ai-dev-launcher", "project.json"));
+  const keyframeDir = join(tempRoot, "sample-project", "关键帧");
+  await mkdir(keyframeDir);
+  await writeFile(join(keyframeDir, "S01.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+  const imagePreview = await page.evaluate(async () => {
+    const images = await window.launcher.getRecentImages("sample-project", 0, 4);
+    return images.images.length ? window.launcher.getImagePreview("sample-project", images.images[0].path) : null;
+  });
+  if (!imagePreview?.data_url.startsWith("data:image/jpeg;base64,")) throw new Error("Generated image preview is unavailable");
   await page.getByText("有什么可以帮你？").waitFor();
   await page.getByTestId("project-row-sample-project").click({ button: "right" });
   await page.getByRole("button", { name: "编辑项目" }).click();

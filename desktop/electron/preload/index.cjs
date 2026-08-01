@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("launcher", {
   },
   getFileTree: (name) => ipcRenderer.invoke("workspace:tree", { name }),
   readFile: (name, path) => ipcRenderer.invoke("workspace:read", { name, path }),
+  getRecentImages: (name, since, limit) => ipcRenderer.invoke("workspace:images", { name, since, limit }),
+  getImagePreview: (name, path) => ipcRenderer.invoke("workspace:image", { name, path }),
   getGitDiff: (name, path) => ipcRenderer.invoke("workspace:diff", { name, path }),
   stageFile: (name, path) => ipcRenderer.invoke("workspace:stage", { name, path }),
   restoreFile: (name, path) => ipcRenderer.invoke("workspace:restore", { name, path }),

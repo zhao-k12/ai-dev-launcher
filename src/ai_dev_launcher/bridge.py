@@ -140,6 +140,10 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
             return workspace.tree()
         if action == "workspace.read":
             return workspace.read(str(payload.get("path", "")))
+        if action == "workspace.images":
+            return workspace.recent_images(float(payload.get("since", 0)), int(payload.get("limit", 16)))
+        if action == "workspace.image-path":
+            return workspace.image_path(str(payload.get("path", "")))
         if action == "workspace.diff":
             path = payload.get("path")
             return workspace.git_diff(str(path) if path else None)

@@ -40,6 +40,30 @@ class WorkspaceService:
             raise ValueError("Only UTF-8 text files can be previewed") from exc
         return {"path": relative_path, "content": content}
 
+    def recent_images(self, since: float = 0, limit: int = 16) -> dict[str, Any]:
+        supported = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+        images: list[dict[str, Any]] = []
+        for path in self.root.rglob("*"):
+            if not path.is_file() or path.suffix.casefold() not in supported:
+                continue
+            relative = path.relative_to(self.root)
+            if any(part in {".git", "node_modules", ".venv", "dist", "release"} for part in relative.parts):
+                continue
+            stat = path.stat()
+            if stat.st_mtime < since:
+                continue
+            images.append({"path": relative.as_posix(), "name": path.name, "size": stat.st_size, "modified_at": stat.st_mtime})
+        images.sort(key=lambda item: (item["modified_at"], item["path"]), reverse=True)
+        return {"images": images[: max(1, min(limit, 24))]}
+
+    def image_path(self, relative_path: str) -> dict[str, Any]:
+        path = self._path(relative_path)
+        if not path.is_file() or path.suffix.casefold() not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            raise ValueError("Only project image files can be previewed")
+        if path.stat().st_size > 30 * 1024 * 1024:
+            raise ValueError("Image is too large to preview")
+        return {"path": str(path), "name": path.name}
+
     def git_diff(self, relative_path: str | None = None) -> dict[str, Any]:
         command = ["git", "diff", "--no-ext-diff", "--"]
         if relative_path:

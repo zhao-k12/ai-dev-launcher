@@ -153,6 +153,23 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("shows images generated during a completed task", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    vi.mocked(window.launcher.startChat).mockImplementation(async (input) => ({ task_id: input.task_id! }));
+    vi.mocked(window.launcher.getRecentImages).mockResolvedValue({ images: [{ path: "关键帧/S01.png", name: "S01.png", size: 100, modified_at: Date.now() / 1000 }] });
+    vi.mocked(window.launcher.getImagePreview).mockResolvedValue({ data_url: "data:image/png;base64,iVBORw0KGgo=", width: 1920, height: 1080 });
+    const view = await render();
+    setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "生成图片"); await nextTick();
+    clickButton(view.host, "发送"); await flush();
+    const input = vi.mocked(window.launcher.startChat).mock.calls[0][0];
+    chatListener?.({ task_id: input.task_id!, type: "codex", event: { type: "item.completed", item: { type: "agent_message", text: "图片已生成。" } } });
+    chatListener?.({ task_id: input.task_id!, type: "complete", exit_code: 0 });
+    await vi.waitFor(() => expect(view.host.querySelector(".artifact-gallery img")).not.toBeNull());
+    (view.host.querySelector(".artifact-grid button") as HTMLButtonElement).click(); await nextTick();
+    expect(view.host.querySelector(".image-lightbox")).not.toBeNull();
+    view.unmount();
+  });
+
   it("accepts a pasted image", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     vi.mocked(window.launcher.saveClipboardImage).mockResolvedValue({ path: "C:\\temp\\image.png" });
