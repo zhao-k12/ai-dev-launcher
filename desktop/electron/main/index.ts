@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, shell } from "electron";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -70,6 +70,10 @@ app.whenReady().then(() => {
   ipcMain.handle("runtime:status", () => callPython("runtime.status"));
   ipcMain.handle("runtime:update", () => callPython("runtime.update"));
   ipcMain.handle("account:usage", () => readCodexUsage());
+  ipcMain.handle("clipboard:write", (_event, payload) => {
+    clipboard.writeText(String(payload?.text ?? ""));
+    return { copied: true };
+  });
   ipcMain.handle("chat:save-image", async (_event, payload) => {
     const match = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(payload?.data_url ?? ""));
     if (!match) throw new Error("Unsupported clipboard image format");

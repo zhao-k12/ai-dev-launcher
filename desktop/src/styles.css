@@ -378,8 +378,16 @@ body { min-width: 900px; min-height: 560px; }
 .inline-code-details summary { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; cursor: pointer; color: #555; user-select: none; }
 .inline-code-details summary span { font-size: 12px; font-weight: 600; }
 .inline-code-details summary small { color: #888; font-size: 10px; }
+.inline-code-details .code-summary-meta { display: flex; align-items: center; gap: 7px; }
+.copy-action, .message-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0; border-radius: 6px; color: #707070; background: transparent; }
+.copy-action { width: 26px; height: 26px; padding: 4px; }
+.copy-action:hover, .message-actions button:hover { color: #292929; background: #e8e8e8; }
+.copy-action svg, .message-actions svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .inline-code-details pre { max-height: 360px; margin: 0; padding: 12px 14px; overflow: auto; border-top: 1px solid #e2e2e2; background: #f4f4f4; white-space: pre; }
 .inline-code-details code { font: 12px/1.55 "Cascadia Code", Consolas, monospace; }
+.message-actions { min-height: 28px; margin-top: 6px; opacity: 0; transition: opacity .15s ease; }
+.message.assistant:hover .message-actions, .message-actions:focus-within { opacity: 1; }
+.message-actions button { height: 28px; padding: 4px 8px; font-size: 11px; }
 .artifact-gallery { margin-top: 16px; display: grid; gap: 9px; }
 .artifact-gallery > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .artifact-gallery > header strong { color: #353535; font-size: 12px; }

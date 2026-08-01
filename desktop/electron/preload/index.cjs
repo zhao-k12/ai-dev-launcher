@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("launcher", {
   getRuntimeStatus: () => ipcRenderer.invoke("runtime:status"),
   updatePrivateTools: () => ipcRenderer.invoke("runtime:update"),
   getCodexUsage: () => ipcRenderer.invoke("account:usage"),
+  copyText: (text) => ipcRenderer.invoke("clipboard:write", { text }),
   startChat: (payload) => ipcRenderer.invoke("chat:start", payload),
   saveClipboardImage: (payload) => ipcRenderer.invoke("chat:save-image", payload),
   stopChat: (taskId) => ipcRenderer.invoke("chat:stop", { task_id: taskId }),

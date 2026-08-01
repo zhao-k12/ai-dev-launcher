@@ -1,7 +1,7 @@
 {
   "name": "ai-dev-launcher-desktop",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Windows desktop interface for AI Dev Launcher",
   "main": "dist-electron/main/index.js",
   "type": "module",

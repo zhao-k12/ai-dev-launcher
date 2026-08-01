@@ -141,6 +141,7 @@ describe("App v2 Phase 1", () => {
 
   it("renders assistant markdown and collapses fenced code", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
+    vi.mocked(window.launcher.copyText).mockResolvedValue({ copied: true });
     localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
       id: "session-1", name: "test", updatedAt: new Date().toISOString(),
       messages: [{ id: "answer-1", role: "assistant", text: "## 结果\n\n已经完成。\n\n```ts\nconst ready = true;\n```" }]
@@ -150,6 +151,12 @@ describe("App v2 Phase 1", () => {
     const details = view.host.querySelector("details.inline-code-details") as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details.textContent).toContain("TypeScript");
+    (details.querySelector("button.copy-action") as HTMLButtonElement).click();
+    await flush();
+    expect(window.launcher.copyText).toHaveBeenCalledWith("const ready = true;");
+    (view.host.querySelector(".message-actions button") as HTMLButtonElement).click();
+    await flush();
+    expect(window.launcher.copyText).toHaveBeenLastCalledWith(expect.stringContaining("const ready = true;"));
     view.unmount();
   });
 

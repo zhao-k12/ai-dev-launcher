@@ -20,7 +20,9 @@ const runningStartedAt = ref<number | null>(null);
 const runningProjectName = ref<string | null>(null);
 const error = ref("");
 const messageList = ref<HTMLElement | null>(null);
+const copiedMessageId = ref<string | null>(null);
 let dispose: (() => void) | undefined;
+let copiedTimer: number | undefined;
 const active = computed(() => sessions.value.find((item) => item.id === activeId.value) ?? null);
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -145,16 +147,22 @@ async function paste(event: ClipboardEvent): Promise<void> {
   } catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
 }
 async function stop(): Promise<void> { if (runningTask.value) await window.launcher.stopChat(runningTask.value); }
+async function copyMessage(message: Message): Promise<void> {
+  await window.launcher.copyText(message.text);
+  copiedMessageId.value = message.id;
+  if (copiedTimer) window.clearTimeout(copiedTimer);
+  copiedTimer = window.setTimeout(() => { copiedMessageId.value = null; }, 1600);
+}
 watch(() => props.project.path, load);
 onMounted(() => { load(); dispose = window.launcher.onChatEvent(handleEvent); });
-onUnmounted(() => dispose?.());
+onUnmounted(() => { dispose?.(); if (copiedTimer) window.clearTimeout(copiedTimer); });
 </script>
 
 <template>
   <section class="chat-workspace">
     <div class="conversation">
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
-      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><template v-else-if="message.role === 'assistant'"><MarkdownMessage :content="message.text" /><ArtifactGallery v-if="message.artifacts?.length" :project-name="project.name" :images="message.artifacts" /></template><pre v-else>{{ message.text }}</pre></article></div>
+      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><template v-else-if="message.role === 'assistant'"><MarkdownMessage :content="message.text" /><ArtifactGallery v-if="message.artifacts?.length" :project-name="project.name" :images="message.artifacts" /><div class="message-actions"><button type="button" :title="copiedMessageId === message.id ? '已复制' : '复制回复'" @click="copyMessage(message)"><svg v-if="copiedMessageId !== message.id" viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="10" rx="2"/><path d="M5 13H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg><svg v-else viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9"/></svg><span>{{ copiedMessageId === message.id ? "已复制" : "复制" }}</span></button></div></template><pre v-else>{{ message.text }}</pre></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
       <footer class="composer-shell">
         <div class="composer-card">

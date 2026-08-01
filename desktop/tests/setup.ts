@@ -13,6 +13,7 @@ Object.defineProperty(window, "launcher", {
     getRuntimeStatus: vi.fn(),
     updatePrivateTools: vi.fn(),
     getCodexUsage: vi.fn(),
+    copyText: vi.fn(),
     startChat: vi.fn(),
     saveClipboardImage: vi.fn(),
     stopChat: vi.fn(),

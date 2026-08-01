@@ -96,6 +96,7 @@ export interface LauncherApi {
   getRuntimeStatus(): Promise<RuntimeStatus>;
   updatePrivateTools(): Promise<{ tools: Array<{ key: string; status: string; detail: string }> }>;
   getCodexUsage(): Promise<CodexUsage>;
+  copyText(text: string): Promise<{ copied: boolean }>;
   startChat(input: { task_id?: string; name: string; prompt: string; permission: "standard" | "full"; session_id?: string; images?: string[] }): Promise<{ task_id: string }>;
   saveClipboardImage(input: { data_url: string; name?: string }): Promise<{ path: string }>;
   stopChat(taskId: string): Promise<{ stopped: boolean }>;
