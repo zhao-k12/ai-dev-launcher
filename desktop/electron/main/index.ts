@@ -25,6 +25,12 @@ function createWindow(): void {
     }
   });
   const chats = new ChatSessionManager(window);
+  ipcMain.handle("projects:update", (_event, payload) => {
+    if (chats.hasActiveProject(String(payload?.current_name ?? ""))) {
+      throw new Error("请先停止该项目正在运行的 Codex 任务，再编辑或移动项目");
+    }
+    return callPython("projects.update", payload);
+  });
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
@@ -34,7 +40,10 @@ function createWindow(): void {
   });
   ipcMain.handle("chat:start", (_event, payload) => chats.start(payload));
   ipcMain.handle("chat:stop", (_event, payload) => chats.stop(payload.task_id));
-  window.on("closed", () => chats.stopAll());
+  window.on("closed", () => {
+    chats.stopAll();
+    ipcMain.removeHandler("projects:update");
+  });
 
   const developmentUrl = process.env.VITE_DEV_SERVER_URL;
   if (developmentUrl) {

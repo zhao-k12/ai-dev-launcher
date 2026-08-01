@@ -13,6 +13,7 @@ export interface CreateProjectInput {
   name: string;
   parent: string;
 }
+export interface UpdateProjectInput { current_name: string; name: string; parent: string; }
 
 export interface RuntimeCheck {
   key: string;
@@ -86,6 +87,7 @@ export interface LauncherApi {
   listProjects(): Promise<ProjectList>;
   createProject(input: CreateProjectInput): Promise<{ project: Project }>;
   setDefaultProject(name: string): Promise<{ project: Project }>;
+  updateProject(input: UpdateProjectInput): Promise<{ project: Project; old_path: string; moved: boolean }>;
   removeProject(name: string): Promise<{ project: Project }>;
   getToolStatus(): Promise<{ tools: ToolStatus[] }>;
   bootstrapRuntime(): Promise<RuntimeStatus>;

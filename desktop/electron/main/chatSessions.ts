@@ -36,6 +36,7 @@ function isRoutineWrapperOutput(line: string): boolean {
 
 export class ChatSessionManager {
   private active = new Map<string, ChildProcessWithoutNullStreams>();
+  private activeProjects = new Map<string, string>();
 
   constructor(private readonly window: BrowserWindow) {}
 
@@ -52,6 +53,7 @@ export class ChatSessionManager {
     // line explicitly terminates the additional-input phase.
     child.stdin.end("\n");
     this.active.set(taskId, child);
+    this.activeProjects.set(taskId, input.name);
     let stdout = "";
     let stderr = "";
     const stdoutDecoder = new StringDecoder("utf8");
@@ -92,6 +94,7 @@ export class ChatSessionManager {
       if (stdout.trim()) send({ type: "log", stream: "stdout", text: stdout.trim() });
       if (stderr.trim()) stderrLines.push(stderr.trim());
       this.active.delete(taskId);
+      this.activeProjects.delete(taskId);
       const meaningfulError = stderrLines
         .filter((line) => !/\b(?:WARN|INFO)\b/.test(line))
         .slice(-4)
@@ -111,6 +114,11 @@ export class ChatSessionManager {
   stopAll(): void {
     for (const child of this.active.values()) this.stopProcess(child);
     this.active.clear();
+    this.activeProjects.clear();
+  }
+
+  hasActiveProject(name: string): boolean {
+    return [...this.activeProjects.values()].some((project) => project.toLocaleLowerCase() === name.toLocaleLowerCase());
   }
 
   private stopProcess(child: ChildProcessWithoutNullStreams): void {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from ai_dev_launcher.config import ConfigStore
@@ -108,3 +110,41 @@ def test_create_project_rejects_existing_destination(service, tmp_path):
 
     with pytest.raises(ProjectAlreadyExistsError):
         service.create_project("existing", tmp_path)
+
+
+def test_update_project_renames_and_moves_directory(service, tmp_path):
+    source_parent = tmp_path / "source"
+    target_parent = tmp_path / "target"
+    source_parent.mkdir()
+    target_parent.mkdir()
+    source = source_parent / "sample"
+    source.mkdir()
+    (source / "keep.txt").write_text("content", encoding="utf-8")
+    service.add_project("sample", source)
+
+    updated, old_path, moved = service.update_project("sample", "renamed", target_parent)
+
+    destination = target_parent / "sample"
+    assert updated.name == "renamed"
+    assert Path(updated.path) == destination
+    assert old_path == str(source.resolve())
+    assert moved is True
+    assert (destination / "keep.txt").read_text(encoding="utf-8") == "content"
+    assert not source.exists()
+    assert service.get_default_project().name == "renamed"
+
+
+def test_update_project_refuses_existing_destination(service, tmp_path):
+    source_parent = tmp_path / "source"
+    target_parent = tmp_path / "target"
+    source_parent.mkdir()
+    target_parent.mkdir()
+    source = source_parent / "sample"
+    source.mkdir()
+    (target_parent / "sample").mkdir()
+    service.add_project("sample", source)
+
+    with pytest.raises(ProjectAlreadyExistsError):
+        service.update_project("sample", "sample", target_parent)
+
+    assert source.exists()

@@ -157,9 +157,33 @@ describe("App v2 Phase 1", () => {
     const event = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(event, "clipboardData", { value: { files: [file] } });
     view.host.querySelector('[data-testid="chat-prompt"]')?.dispatchEvent(event);
+    await vi.waitFor(() => expect(window.launcher.saveClipboardImage).toHaveBeenCalledOnce());
     await flush();
-    expect(window.launcher.saveClipboardImage).toHaveBeenCalledOnce();
     expect(view.host.querySelector(".composer-images img")).not.toBeNull();
+    view.unmount();
+  });
+
+  it("opens project actions with right click and sets the default", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: null });
+    vi.mocked(window.launcher.setDefaultProject).mockResolvedValue({ project });
+    const view = await render();
+    view.host.querySelector(`[data-testid="project-row-${project.name}"]`)?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 30, clientY: 80 }));
+    await nextTick();
+    clickButton(view.host, "设为默认"); await flush();
+    expect(window.launcher.setDefaultProject).toHaveBeenCalledWith(project.name);
+    view.unmount();
+  });
+
+  it("edits a project from the right-click menu", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    vi.mocked(window.launcher.updateProject).mockResolvedValue({ project: { ...project, name: "renamed" }, old_path: project.path, moved: false });
+    const view = await render();
+    view.host.querySelector(`[data-testid="project-row-${project.name}"]`)?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 30, clientY: 80 }));
+    await nextTick();
+    clickButton(view.host, "编辑项目"); await nextTick();
+    setInput(view.host.querySelector('[data-testid="edit-project-name"]') as HTMLInputElement, "renamed");
+    clickButton(view.host, "保存更改"); await flush();
+    expect(window.launcher.updateProject).toHaveBeenCalledWith(expect.objectContaining({ current_name: project.name, name: "renamed" }));
     view.unmount();
   });
 

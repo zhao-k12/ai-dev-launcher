@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("launcher", {
   createProject: (payload) => ipcRenderer.invoke("projects:create", payload),
   setDefaultProject: (name) =>
     ipcRenderer.invoke("projects:default", { name }),
+  updateProject: (payload) => ipcRenderer.invoke("projects:update", payload),
   removeProject: (name) =>
     ipcRenderer.invoke("projects:remove", { name }),
   getToolStatus: () => ipcRenderer.invoke("tools:status"),

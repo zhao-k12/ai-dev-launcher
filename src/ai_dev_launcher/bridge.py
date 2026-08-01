@@ -64,6 +64,13 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
     if action == "projects.default":
         project = service.set_default(str(payload.get("name", "")))
         return {"project": project.to_dict()}
+    if action == "projects.update":
+        project, old_path, moved = service.update_project(
+            str(payload.get("current_name", "")),
+            str(payload.get("name", "")),
+            Path(str(payload.get("parent", ""))),
+        )
+        return {"project": project.to_dict(), "old_path": old_path, "moved": moved}
     if action == "projects.remove":
         project = service.remove_project(str(payload.get("name", "")))
         return {"project": project.to_dict()}

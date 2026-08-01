@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from ai_dev_launcher.config.store import ConfigStore
@@ -136,3 +137,60 @@ class ProjectService:
         config.default_project = project.name
         self.store.save(config)
         return project
+
+    def update_project(self, current_name: str, new_name: str, parent: Path) -> tuple[Project, str, bool]:
+        """Rename a registered project and optionally move its directory."""
+
+        normalized_name = new_name.strip()
+        if not normalized_name:
+            raise ValueError("Project name cannot be empty")
+        if normalized_name in {".", ".."} or any(
+            character in normalized_name for character in '<>:"/\\|?*'
+        ):
+            raise ValueError("Project name contains characters that Windows cannot use")
+
+        config = self.store.load()
+        current = next(
+            (item for item in config.projects if item.name.casefold() == current_name.casefold()),
+            None,
+        )
+        if current is None:
+            raise ProjectNotFoundError(f"Project '{current_name}' is not registered")
+        if any(
+            item.name.casefold() == normalized_name.casefold()
+            and item.name.casefold() != current.name.casefold()
+            for item in config.projects
+        ):
+            raise ProjectAlreadyExistsError(f"Project '{normalized_name}' is already registered")
+
+        source = Path(current.path).resolve()
+        if not source.is_dir():
+            raise ValueError(f"Project directory does not exist: {source}")
+        resolved_parent = parent.expanduser().resolve()
+        if not resolved_parent.is_dir():
+            raise ValueError(f"Save location does not exist: {resolved_parent}")
+        if resolved_parent == source or resolved_parent.is_relative_to(source):
+            raise ValueError("A project cannot be moved inside its own directory")
+
+        destination = source if resolved_parent == source.parent else resolved_parent / source.name
+        moved = destination != source
+        if moved and destination.exists():
+            raise ProjectAlreadyExistsError(f"A file or folder already exists at: {destination}")
+
+        if moved:
+            shutil.move(str(source), str(destination))
+        updated = Project(
+            name=normalized_name,
+            path=str(destination),
+            created_at=current.created_at,
+        )
+        config.projects = [updated if item.name.casefold() == current.name.casefold() else item for item in config.projects]
+        if config.default_project and config.default_project.casefold() == current.name.casefold():
+            config.default_project = updated.name
+        try:
+            self.store.save(config)
+        except Exception:
+            if moved and destination.exists() and not source.exists():
+                shutil.move(str(destination), str(source))
+            raise
+        return updated, current.path, moved

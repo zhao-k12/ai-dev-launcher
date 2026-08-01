@@ -6,6 +6,7 @@ Object.defineProperty(window, "launcher", {
     listProjects: vi.fn(),
     createProject: vi.fn(),
     setDefaultProject: vi.fn(),
+    updateProject: vi.fn(),
     removeProject: vi.fn(),
     getToolStatus: vi.fn(),
     bootstrapRuntime: vi.fn(),
