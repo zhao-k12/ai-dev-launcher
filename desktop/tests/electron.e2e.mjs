@@ -35,6 +35,12 @@ try {
   } catch (error) {
     if (error?.message === "Original project directory still exists after moving") throw error;
   }
+  await page.getByTestId("add-project").click();
+  await page.getByTestId("project-name").fill("中欧视频-2026");
+  await page.getByTestId("project-path").evaluate((element, value) => { element.removeAttribute("readonly"); element.value = value; element.dispatchEvent(new Event("input", { bubbles: true })); }, tempRoot);
+  await page.getByTestId("submit-project").click();
+  await page.getByText("“中欧视频-2026”已创建并初始化。").waitFor();
+  await access(join(tempRoot, "中欧视频-2026", "AGENTS.md"));
   const chatLayout = await page.evaluate(() => ({
     composerPosition: getComputedStyle(document.querySelector(".composer-shell")).position,
     horizontalOverflow: getComputedStyle(document.querySelector(".message-list")).overflowX

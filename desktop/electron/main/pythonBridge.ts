@@ -11,6 +11,12 @@ type BridgeResponse<T> =
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(currentDir, "../../..");
 
+function asciiJson(value: unknown): string {
+  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (character) =>
+    `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`
+  );
+}
+
 function bridgeCommand(): {
   executable: string;
   args: string[];
@@ -80,6 +86,8 @@ export function callPython<T>(
         resolvePromise(response.data);
       }
     );
-    child.stdin?.end(JSON.stringify({ action, payload }));
+    // Windows pipe decoding can turn individual UTF-8 continuation bytes into
+    // surrogate escapes. ASCII-only JSON preserves all Unicode via \uXXXX.
+    child.stdin?.end(asciiJson({ action, payload }), "ascii");
   });
 }
