@@ -308,6 +308,13 @@ body { min-width: 900px; min-height: 560px; }
 .app-icon { width: 27px; height: 27px; border-radius: 8px; background: #202123; box-shadow: none; }
 .app-icon svg { width: 19px; fill: #fff; }
 .app-header nav { gap: 4px; }
+.codex-usage { width: min(360px, 42vw); display: grid; grid-template-columns: auto minmax(90px, 1fr); align-items: center; gap: 12px; -webkit-app-region: no-drag; }
+.usage-copy { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.usage-copy strong { color: #363636; font-size: 12px; font-weight: 600; }
+.usage-copy small { color: #8c8c8c; font-size: 10px; }
+.usage-track { height: 5px; overflow: hidden; border-radius: 99px; background: #e7e7e7; }
+.usage-track i { display: block; height: 100%; border-radius: inherit; background: #202123; transition: width .25s ease; }
+.codex-usage.unavailable .usage-track i { background: #aaa; }
 .button { min-height: 38px; border-radius: 9px; padding: 0 14px; font-weight: 500; }
 .button.primary { color: #fff; background: #202123; border-color: #202123; box-shadow: none; }
 .button.primary:hover:not(:disabled) { background: #353536; }

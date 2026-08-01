@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import AddProjectDialog from "./components/AddProjectDialog.vue";
-import AppIcon from "./components/AppIcon.vue";
 import CliVersionDialog from "./components/CliVersionDialog.vue";
 import ChatWorkspace from "./components/ChatWorkspace.vue";
 import EnvironmentDialog from "./components/EnvironmentDialog.vue";
 import ProjectList from "./components/ProjectList.vue";
-import type { CreateProjectInput, Project, RuntimeStatus } from "./types";
+import type { CodexUsage, CreateProjectInput, Project, RuntimeStatus } from "./types";
 
 const projects = ref<Project[]>([]);
 const defaultProject = ref<string | null>(null);
 const selected = ref<Project | null>(null);
 const runtime = ref<RuntimeStatus | null>(null);
+const codexUsage = ref<CodexUsage | null>(null);
 const loading = ref(true);
 const runtimeLoading = ref(true);
 const busy = ref(false);
@@ -21,6 +21,17 @@ const showCreate = ref(false);
 const showEnvironment = ref(false);
 const showVersions = ref(false);
 const createDialog = ref<InstanceType<typeof AddProjectDialog> | null>(null);
+let usageTimer: number | undefined;
+const remainingLabel = computed(() => codexUsage.value?.remaining_percent == null ? "--" : `${Math.round(codexUsage.value.remaining_percent)}%`);
+const resetLabel = computed(() => {
+  const timestamp = codexUsage.value?.resets_at;
+  if (!timestamp) return "重置时间暂不可用";
+  return `下次重置 ${new Date(timestamp * 1000).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+});
+async function refreshUsage(): Promise<void> {
+  try { codexUsage.value = await window.launcher.getCodexUsage(); }
+  catch { codexUsage.value = { available: false, used_percent: null, remaining_percent: null, resets_at: null, window_minutes: null, plan_type: null }; }
+}
 function announce(message: string): void { notice.value = message; window.setTimeout(() => { if (notice.value === message) notice.value = ""; }, 4000); }
 
 async function refresh(preferred?: string): Promise<void> {
@@ -58,12 +69,15 @@ onMounted(async () => {
   catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
   finally { loading.value = false; }
   void window.launcher.updatePrivateTools().then(() => refreshRuntime()).catch(() => undefined);
+  void refreshUsage();
+  usageTimer = window.setInterval(() => void refreshUsage(), 5 * 60 * 1000);
 });
+onUnmounted(() => { if (usageTimer) window.clearInterval(usageTimer); });
 </script>
 
 <template>
   <main class="app-shell">
-    <header class="app-header"><div class="brand"><AppIcon /><strong>AI Dev Launcher</strong><small>v2.0</small></div><nav><button class="button secondary compact" data-testid="environment-check" @click="showEnvironment = true">◈ 环境状态</button><button class="button secondary compact" data-testid="cli-version" @click="showVersions = true">&lt;/&gt; CLI 版本</button></nav></header>
+    <header class="app-header"><div class="codex-usage" :class="{ unavailable: !codexUsage?.available }"><div class="usage-copy"><strong>Codex 剩余 {{ remainingLabel }}</strong><small>{{ resetLabel }}</small></div><div class="usage-track" role="progressbar" aria-label="Codex 剩余用量" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="codexUsage?.remaining_percent ?? undefined"><i :style="{ width: `${codexUsage?.remaining_percent ?? 0}%` }"></i></div></div><nav><button class="button secondary compact" data-testid="environment-check" @click="showEnvironment = true">◈ 环境状态</button><button class="button secondary compact" data-testid="cli-version" @click="showVersions = true">&lt;/&gt; CLI 版本</button></nav></header>
     <div v-if="notice" class="toast success" role="status">{{ notice }}</div><div v-if="error" class="toast error" role="alert"><span>{{ error }}</span><button class="icon-button" aria-label="关闭错误" @click="error = ''">×</button></div>
     <section v-if="loading" class="center-state" data-testid="loading"><span class="spinner"></span><p>正在自动准备 AI 开发环境…</p></section>
     <section v-else-if="projects.length === 0" class="center-state empty" data-testid="empty-state"><div class="empty-icon">▱</div><h1>创建第一个项目</h1><p>只需填写名称和保存位置，其余工作将自动完成。</p><button class="button primary" @click="showCreate = true">创建新项目</button></section>

@@ -11,6 +11,7 @@ Object.defineProperty(window, "launcher", {
     bootstrapRuntime: vi.fn(),
     getRuntimeStatus: vi.fn(),
     updatePrivateTools: vi.fn(),
+    getCodexUsage: vi.fn(),
     startChat: vi.fn(),
     stopChat: vi.fn(),
     onChatEvent: vi.fn(() => () => undefined),

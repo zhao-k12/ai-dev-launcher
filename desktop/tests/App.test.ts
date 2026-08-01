@@ -33,6 +33,7 @@ describe("App v2 Phase 1", () => {
     vi.mocked(window.launcher.bootstrapRuntime).mockResolvedValue(runtime);
     vi.mocked(window.launcher.getRuntimeStatus).mockResolvedValue(runtime);
     vi.mocked(window.launcher.updatePrivateTools).mockResolvedValue({ tools: [] });
+    vi.mocked(window.launcher.getCodexUsage).mockResolvedValue({ available: true, used_percent: 17, remaining_percent: 83, resets_at: 1786175808, window_minutes: 10080, plan_type: "plus" });
     vi.mocked(window.launcher.onChatEvent).mockImplementation((callback) => { chatListener = callback; return () => undefined; });
     vi.mocked(window.launcher.getFileTree).mockResolvedValue({ items: [], truncated: false });
     vi.mocked(window.launcher.getGitDiff).mockResolvedValue({ diff: "", status: [] });
@@ -52,6 +53,7 @@ describe("App v2 Phase 1", () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     const view = await render();
     expect(view.host.textContent).toContain("与 Codex 桌面端独立");
+    expect(view.host.textContent).toContain("Codex 剩余 83%");
     expect(view.host.textContent).toContain("有什么可以帮你？");
     expect(view.host.textContent).toContain("标准模式");
     view.unmount();

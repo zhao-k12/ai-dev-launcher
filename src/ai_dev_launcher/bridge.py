@@ -147,7 +147,9 @@ def main() -> int:
         response = {"ok": True, "data": handle_request(request)}
     except (LauncherError, OSError, ValueError, json.JSONDecodeError) as exc:
         response = {"ok": False, "error": str(exc)}
-    json.dump(response, sys.stdout, ensure_ascii=False)
+    # Keep the Electron bridge byte stream ASCII-only so Windows code pages cannot
+    # corrupt Chinese status labels emitted by the packaged executable.
+    json.dump(response, sys.stdout, ensure_ascii=True)
     sys.stdout.write("\n")
     return 0 if response["ok"] else 1
 

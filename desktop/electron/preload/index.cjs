@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("launcher", {
   bootstrapRuntime: () => ipcRenderer.invoke("runtime:bootstrap"),
   getRuntimeStatus: () => ipcRenderer.invoke("runtime:status"),
   updatePrivateTools: () => ipcRenderer.invoke("runtime:update"),
+  getCodexUsage: () => ipcRenderer.invoke("account:usage"),
   startChat: (payload) => ipcRenderer.invoke("chat:start", payload),
   stopChat: (taskId) => ipcRenderer.invoke("chat:stop", { task_id: taskId }),
   onChatEvent: (callback) => {

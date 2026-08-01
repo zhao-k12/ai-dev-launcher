@@ -24,6 +24,12 @@ const application = await electron.launch({
 
 try {
   const page = await application.firstWindow();
+  const chromeState = await application.evaluate(({ BrowserWindow, Menu }) => ({
+    title: BrowserWindow.getAllWindows()[0]?.getTitle(),
+    hasMenu: Menu.getApplicationMenu() !== null
+  }));
+  if (chromeState.title !== "AI Dev Launcher v2.0.5") throw new Error(`Unexpected window title: ${chromeState.title}`);
+  if (chromeState.hasMenu) throw new Error("Application menu should be hidden");
   await page.getByRole("button", { name: "创建新项目" }).click();
   await page.getByTestId("project-name").fill("installed-project");
   await page.getByTestId("project-path").evaluate((element, value) => {
@@ -36,6 +42,7 @@ try {
 
   await page.getByTestId("environment-check").click();
   await page.getByText("进程级隔离 · 不修改 Codex 桌面端").waitFor();
+  await page.getByText("Codex 桌面端配置独立").waitFor();
   await page.getByRole("button", { name: "完成" }).click();
   await access(join(projectDir, "AGENTS.md"));
   await access(join(projectDir, ".ai-dev-launcher", "project.json"));

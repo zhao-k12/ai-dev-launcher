@@ -33,6 +33,15 @@ export interface RuntimeStatus {
   recovered?: boolean;
 }
 
+export interface CodexUsage {
+  available: boolean;
+  used_percent: number | null;
+  remaining_percent: number | null;
+  resets_at: number | null;
+  window_minutes: number | null;
+  plan_type: string | null;
+}
+
 export interface ChatEvent {
   task_id: string;
   type: "codex" | "log" | "error" | "complete";
@@ -82,6 +91,7 @@ export interface LauncherApi {
   bootstrapRuntime(): Promise<RuntimeStatus>;
   getRuntimeStatus(): Promise<RuntimeStatus>;
   updatePrivateTools(): Promise<{ tools: Array<{ key: string; status: string; detail: string }> }>;
+  getCodexUsage(): Promise<CodexUsage>;
   startChat(input: { task_id?: string; name: string; prompt: string; permission: "standard" | "full"; session_id?: string }): Promise<{ task_id: string }>;
   stopChat(taskId: string): Promise<{ stopped: boolean }>;
   onChatEvent(callback: (event: ChatEvent) => void): () => void;
