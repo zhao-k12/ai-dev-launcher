@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 dist/
 build/
+!desktop/build/
+!desktop/build/installer.nsh
 *.egg-info/
 desktop/node_modules/
 desktop/dist/
