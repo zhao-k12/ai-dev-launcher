@@ -49,6 +49,20 @@ try {
   await page.getByTestId("submit-project").click();
   await page.getByText("“中欧视频-2026”已创建并初始化。").waitFor();
   await access(join(tempRoot, "中欧视频-2026", "AGENTS.md"));
+  await page.evaluate(({ key }) => {
+    const messages = Array.from({ length: 80 }, (_, index) => ({
+      id: `history-${index}`,
+      role: index % 2 ? "assistant" : "user",
+      text: `${index}: ${"long historical message ".repeat(12)}`
+    }));
+    localStorage.setItem(key, JSON.stringify([{ id: "history", name: "history", updatedAt: new Date().toISOString(), messages }]));
+  }, { key: `ai-dev-launcher:sessions:${join(movedParent, "sample-project")}` });
+  await page.getByTestId("project-row-sample-renamed").click();
+  await page.waitForTimeout(300);
+  const latestMessageVisible = await page.getByTestId("message-list").evaluate((element) =>
+    element.scrollHeight - element.clientHeight - element.scrollTop <= 2
+  );
+  if (!latestMessageVisible) throw new Error("Project history did not open at the latest message");
   const chatLayout = await page.evaluate(() => ({
     composerPosition: getComputedStyle(document.querySelector(".composer-shell")).position,
     horizontalOverflow: getComputedStyle(document.querySelector(".message-list")).overflowX
