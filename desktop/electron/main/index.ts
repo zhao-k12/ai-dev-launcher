@@ -142,6 +142,17 @@ if (singleInstance) app.whenReady().then(() => {
       previews: Object.fromEntries(result.images.map((image) => [image.relative_path, imagePreview(image.path)]))
     };
   });
+  ipcMain.handle("workspace:open-link", async (_event, payload) => {
+    const href = String(payload?.href ?? "");
+    if (/^https?:\/\//i.test(href)) {
+      await shell.openExternal(href);
+      return { opened: true };
+    }
+    const result = await callPython<{ path: string }>("workspace.link-path", payload);
+    const failure = await shell.openPath(result.path);
+    if (failure) throw new Error(failure);
+    return { opened: true };
+  });
   ipcMain.handle("workspace:diff", (_event, payload) => callPython("workspace.diff", payload));
   ipcMain.handle("workspace:stage", (_event, payload) => callPython("workspace.stage", payload));
   ipcMain.handle("workspace:restore", (_event, payload) => callPython("workspace.restore", payload));

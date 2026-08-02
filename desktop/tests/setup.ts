@@ -23,6 +23,7 @@ Object.defineProperty(window, "launcher", {
     getRecentImages: vi.fn(),
     getImagePreview: vi.fn(),
     getImagePreviews: vi.fn(),
+    openLink: vi.fn(),
     getGitDiff: vi.fn(),
     stageFile: vi.fn(),
     restoreFile: vi.fn(),

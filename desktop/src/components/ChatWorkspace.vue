@@ -226,13 +226,25 @@ async function copyMessage(message: Message): Promise<void> {
   if (copiedTimer) window.clearTimeout(copiedTimer);
   copiedTimer = window.setTimeout(() => { copiedMessageId.value = null; }, 1600);
 }
+function openMessageLink(event: MouseEvent): void {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const anchor = target.closest<HTMLAnchorElement>("a[href]");
+  const href = anchor?.getAttribute("href");
+  if (!href || href.startsWith("#")) return;
+  event.preventDefault();
+  error.value = "";
+  void window.launcher.openLink(props.project.name, href).catch((reason) => {
+    error.value = reason instanceof Error ? reason.message : String(reason);
+  });
+}
 watch(() => props.project.path, (_path, previousPath) => {
   if (previousPath) saveNow(`ai-dev-launcher:sessions:${previousPath}`);
   load();
 });
 watch(runningTask, (task) => emit("runningChange", Boolean(task)), { immediate: true });
-onMounted(() => { load(); dispose = window.launcher.onChatEvent(handleEvent); });
-onUnmounted(() => { dispose?.(); saveNow(); if (copiedTimer) window.clearTimeout(copiedTimer); if (scrollTimer) window.clearTimeout(scrollTimer); if (scrollFrame) window.cancelAnimationFrame(scrollFrame); });
+onMounted(() => { load(); dispose = window.launcher.onChatEvent(handleEvent); messageList.value?.addEventListener("click", openMessageLink); });
+onUnmounted(() => { dispose?.(); messageList.value?.removeEventListener("click", openMessageLink); saveNow(); if (copiedTimer) window.clearTimeout(copiedTimer); if (scrollTimer) window.clearTimeout(scrollTimer); if (scrollFrame) window.cancelAnimationFrame(scrollFrame); });
 </script>
 
 <template>

@@ -247,9 +247,10 @@ describe("App v2 Phase 1", () => {
   it("renders assistant markdown and collapses fenced code", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     vi.mocked(window.launcher.copyText).mockResolvedValue({ copied: true });
+    vi.mocked(window.launcher.openLink).mockResolvedValue({ opened: true });
     localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
       id: "session-1", name: "test", updatedAt: new Date().toISOString(),
-      messages: [{ id: "answer-1", role: "assistant", text: "## 结果\n\n已经完成。\n\n```ts\nconst ready = true;\n```" }]
+      messages: [{ id: "answer-1", role: "assistant", text: "## 结果\n\n[打开页面](index.html)\n\n```ts\nconst ready = true;\n```" }]
     }]));
     const view = await render();
     expect(view.host.querySelector(".markdown-body h2")?.textContent).toBe("结果");
@@ -262,6 +263,9 @@ describe("App v2 Phase 1", () => {
     (view.host.querySelector(".message-actions button") as HTMLButtonElement).click();
     await flush();
     expect(window.launcher.copyText).toHaveBeenLastCalledWith(expect.stringContaining("const ready = true;"));
+    (view.host.querySelector('.markdown-body a[href="index.html"]') as HTMLAnchorElement).click();
+    await flush();
+    expect(window.launcher.openLink).toHaveBeenCalledWith(project.name, "index.html");
     view.unmount();
   });
 

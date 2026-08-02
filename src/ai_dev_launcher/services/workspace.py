@@ -7,6 +7,8 @@ import heapq
 import os
 import subprocess
 import urllib.request
+from urllib.parse import unquote, urlparse
+from urllib.request import url2pathname
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +85,21 @@ class WorkspaceService:
         if len(relative_paths) > 24:
             raise ValueError("At most 24 images can be previewed at once")
         return {"images": [self.image_path(path) | {"relative_path": path} for path in relative_paths]}
+
+    def link_path(self, href: str) -> dict[str, Any]:
+        parsed = urlparse(href)
+        if parsed.scheme not in {"", "file"}:
+            raise ValueError("Only web links and project files can be opened")
+        raw_path = url2pathname(unquote(parsed.path)) if parsed.scheme == "file" else unquote(parsed.path)
+        path = Path(raw_path)
+        candidate = path.resolve() if path.is_absolute() else self._path(raw_path)
+        if candidate != self.root and self.root not in candidate.parents:
+            raise ValueError("Link must stay inside the current project")
+        if not candidate.is_file():
+            raise ValueError("Linked file does not exist")
+        if candidate.suffix.casefold() not in {".html", ".htm", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".txt", ".md"}:
+            raise ValueError("This project file type cannot be opened from chat")
+        return {"path": str(candidate)}
 
     def git_diff(self, relative_path: str | None = None) -> dict[str, Any]:
         command = ["git", "diff", "--no-ext-diff", "--"]

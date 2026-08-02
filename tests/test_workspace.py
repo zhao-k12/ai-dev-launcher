@@ -73,3 +73,19 @@ def test_image_preview_batch_is_bounded(tmp_path):
 
     with pytest.raises(ValueError, match="24"):
         workspace.image_paths([f"image-{index}.png" for index in range(25)])
+
+
+def test_chat_link_only_opens_safe_project_files(tmp_path):
+    page = tmp_path / "preview" / "index.html"
+    page.parent.mkdir()
+    page.write_text("<h1>Preview</h1>", encoding="utf-8")
+    workspace = service(tmp_path)
+
+    assert workspace.link_path("preview/index.html")["path"] == str(page.resolve())
+    assert workspace.link_path(page.as_uri())["path"] == str(page.resolve())
+    with pytest.raises(ValueError, match="inside"):
+        workspace.link_path("../outside.html")
+    script = tmp_path / "unsafe.exe"
+    script.write_bytes(b"unsafe")
+    with pytest.raises(ValueError, match="type"):
+        workspace.link_path("unsafe.exe")

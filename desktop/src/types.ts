@@ -107,6 +107,7 @@ export interface LauncherApi {
   getRecentImages(name: string, since: number, limit?: number): Promise<{ images: ImageArtifact[] }>;
   getImagePreview(name: string, path: string): Promise<{ data_url: string; width: number; height: number }>;
   getImagePreviews(name: string, paths: string[]): Promise<{ previews: Record<string, string> }>;
+  openLink(name: string, href: string): Promise<{ opened: boolean }>;
   getGitDiff(name: string, path?: string): Promise<GitDiffResult>;
   stageFile(name: string, path: string): Promise<{ path: string; status: string }>;
   restoreFile(name: string, path: string): Promise<{ path: string; status: string }>;

@@ -151,6 +151,8 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
             if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
                 raise ValueError("Image paths must be a list of strings")
             return workspace.image_paths(paths)
+        if action == "workspace.link-path":
+            return workspace.link_path(str(payload.get("href", "")))
         if action == "workspace.diff":
             path = payload.get("path")
             return workspace.git_diff(str(path) if path else None)
