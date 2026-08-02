@@ -24,11 +24,11 @@ const application = await electron.launch({
 
 try {
   const page = await application.firstWindow();
-  const chromeState = await application.evaluate(({ BrowserWindow, Menu }) => ({
-    title: BrowserWindow.getAllWindows()[0]?.getTitle(),
+  const chromeState = await application.evaluate(({ app, Menu }) => ({
+    version: app.getVersion(),
     hasMenu: Menu.getApplicationMenu() !== null
   }));
-  if (chromeState.title !== "AI Dev Launcher v2.4.0") throw new Error(`Unexpected window title: ${chromeState.title}`);
+  if (chromeState.version !== "2.4.0") throw new Error(`Unexpected app version: ${chromeState.version}`);
   if (chromeState.hasMenu) throw new Error("Application menu should be hidden");
   await page.getByRole("button", { name: "创建新项目" }).click();
   await page.getByTestId("project-name").fill("installed-project");

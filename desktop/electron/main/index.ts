@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, shell } from "electron";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { callPython } from "./pythonBridge.js";
@@ -8,6 +8,24 @@ import { ChatSessionManager } from "./chatSessions.js";
 import { readCodexUsage } from "./codexUsage.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
+
+function clipboardImageDirectory(): string {
+  return join(app.getPath("temp"), "ai-dev-launcher", "clipboard-images");
+}
+
+async function cleanupClipboardImages(): Promise<void> {
+  const directory = clipboardImageDirectory();
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  try {
+    const names = await readdir(directory);
+    await Promise.all(names.map(async (name) => {
+      const path = join(directory, name);
+      try {
+        if ((await stat(path)).mtimeMs < cutoff) await unlink(path);
+      } catch { /* A concurrently used or removed temporary image is harmless. */ }
+    }));
+  } catch { /* The directory does not exist on a fresh installation. */ }
+}
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -54,6 +72,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  void cleanupClipboardImages();
   Menu.setApplicationMenu(null);
   ipcMain.handle("projects:list", () => callPython("projects.list"));
   ipcMain.handle("projects:create", (_event, payload) =>
@@ -80,7 +99,7 @@ app.whenReady().then(() => {
     const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
     const contents = Buffer.from(match[2], "base64");
     if (contents.byteLength > 10 * 1024 * 1024) throw new Error("Clipboard image exceeds the 10 MB limit");
-    const directory = join(app.getPath("temp"), "ai-dev-launcher", "clipboard-images");
+    const directory = clipboardImageDirectory();
     await mkdir(directory, { recursive: true });
     const path = join(directory, `${randomUUID()}.${extensions[match[1]]}`);
     await writeFile(path, contents);

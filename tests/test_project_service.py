@@ -112,6 +112,21 @@ def test_create_project_rejects_existing_destination(service, tmp_path):
         service.create_project("existing", tmp_path)
 
 
+def test_create_project_rolls_back_directory_and_registration_on_preparation_failure(service, tmp_path, monkeypatch):
+    def fail_preparation(*args, **kwargs):
+        root = tmp_path / "broken-app"
+        (root / "partial.txt").write_text("partial", encoding="utf-8")
+        raise RuntimeError("preparation failed")
+
+    monkeypatch.setattr("ai_dev_launcher.services.projects.ProjectPreparationService.prepare", fail_preparation)
+
+    with pytest.raises(RuntimeError, match="preparation failed"):
+        service.create_project("broken-app", tmp_path)
+
+    assert not (tmp_path / "broken-app").exists()
+    assert service.store.load().projects == []
+
+
 def test_update_project_renames_and_moves_directory(service, tmp_path):
     source_parent = tmp_path / "source"
     target_parent = tmp_path / "target"

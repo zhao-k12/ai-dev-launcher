@@ -85,7 +85,11 @@ export class ChatSessionManager {
       stderr += stderrDecoder.write(chunk);
       const lines = stderr.split(/\r?\n/);
       stderr = lines.pop() ?? "";
-      for (const line of lines) if (line.trim()) stderrLines.push(line.trim());
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        stderrLines.push(line.trim());
+        if (stderrLines.length > 50) stderrLines.shift();
+      }
     });
     child.on("error", (error) => {
       if (!this.cancelled.has(taskId)) send({ type: "error", message: error.message });

@@ -11,6 +11,14 @@ type BridgeResponse<T> =
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(currentDir, "../../..");
 
+function timeoutFor(action: string): number {
+  if (action === "runtime.update") return 16 * 60_000;
+  if (action === "workspace.terminal") return 130_000;
+  if (action === "projects.create" || action === "projects.prepare") return 60_000;
+  if (action === "workspace.tree" || action === "workspace.images") return 45_000;
+  return 15_000;
+}
+
 function asciiJson(value: unknown): string {
   return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (character) =>
     `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`
@@ -62,7 +70,8 @@ export function callPython<T>(
         cwd: command.cwd,
         env: bridgeEnvironment,
         encoding: "utf8",
-        timeout: 15000,
+        timeout: timeoutFor(action),
+        maxBuffer: 16 * 1024 * 1024,
         windowsHide: true
       },
       (error, stdout, stderr) => {

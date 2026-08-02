@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { ChatEvent, ImageArtifact, Project, RuntimeStatus } from "../types";
 import ArtifactGallery from "./ArtifactGallery.vue";
 import MarkdownMessage from "./MarkdownMessage.vue";
+import { loadSessions, persistSessions } from "../chatPersistence";
+import { executionPrompt, recentHandoff, shouldRotate } from "../chatPolicy";
 
 type Permission = "standard" | "full";
 interface PendingImage { path: string; name: string; preview: string; }
@@ -19,6 +21,7 @@ const runningSessionId = ref<string | null>(null);
 const runningStartedAt = ref<number | null>(null);
 const runningProjectName = ref<string | null>(null);
 const error = ref("");
+const storageWarning = ref("");
 const messageList = ref<HTMLElement | null>(null);
 const copiedMessageId = ref<string | null>(null);
 let dispose: (() => void) | undefined;
@@ -27,14 +30,13 @@ let saveTimer: number | undefined;
 const active = computed(() => sessions.value.find((item) => item.id === activeId.value) ?? null);
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-const AUTO_ROTATE_TOKENS = 180_000;
-const AUTO_ROTATE_TURNS = 40;
-const AUTO_ROTATE_CHARS = 500_000;
 
 function saveNow(key = storageKey.value): void {
   if (saveTimer) { window.clearTimeout(saveTimer); saveTimer = undefined; }
-  const persisted = sessions.value.map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status").map(({ uploads: _uploads, ...message }) => message) }));
-  localStorage.setItem(key, JSON.stringify(persisted));
+  const result = persistSessions(key, sessions.value);
+  storageWarning.value = result === "compacted"
+    ? "聊天记录较大，已自动压缩执行详情后安全保存。"
+    : result === "failed" ? "聊天记录已超过本地存储容量，请复制重要内容后清理旧会话。" : "";
 }
 function save(): void {
   if (saveTimer) window.clearTimeout(saveTimer);
@@ -45,10 +47,8 @@ async function scrollToLatest(): Promise<void> {
   if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
 }
 function load(): void {
-  try {
-    sessions.value = (JSON.parse(localStorage.getItem(storageKey.value) || "[]") as Session[])
-      .map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status") }));
-  } catch { sessions.value = []; }
+  sessions.value = loadSessions<Session>(storageKey.value)
+    .map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status") }));
   if (!sessions.value.length) newSession(); else activeId.value = sessions.value[0].id;
   void scrollToLatest();
 }
@@ -82,15 +82,6 @@ function numericUsage(event: Record<string, unknown>, key: string): number {
   const value = Number(usage[key] ?? 0);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
-function shouldRotate(session: Session): boolean {
-  return Boolean(session.codexSessionId) && ((session.lastInputTokens ?? 0) >= AUTO_ROTATE_TOKENS || (session.turnCount ?? 0) >= AUTO_ROTATE_TURNS || (session.topicChars ?? 0) >= AUTO_ROTATE_CHARS);
-}
-function recentHandoff(session: Session): string {
-  const relevant = session.messages.filter((message) => message.role === "user" || message.role === "assistant").slice(-12);
-  let transcript = relevant.map((message) => `${message.role === "user" ? "用户" : "Codex"}：${message.text}`).join("\n\n");
-  if (transcript.length > 18_000) transcript = transcript.slice(-18_000);
-  return transcript;
-}
 function rotateSession(session: Session): string {
   const handoff = recentHandoff(session);
   session.codexSessionId = undefined;
@@ -100,19 +91,6 @@ function rotateSession(session: Session): string {
   session.messages.push({ id: uid(), role: "notice", text: "当前后台会话已达到较高上下文阈值，已自动续接到新会话，并携带最近对话作为任务交接。界面聊天记录仍保留。" });
   save();
   return handoff;
-}
-function isImplementationPlan(text: string): boolean {
-  if (text.length < 240) return false;
-  const markers = [/实施计划/i, /开发计划/i, /执行计划/i, /验收(?:标准|条件)/i, /Phase\s*\d/i, /阶段\s*[一二三四五六七八九\d]/i, /修改文件/i, /执行步骤/i];
-  return markers.filter((pattern) => pattern.test(text)).length >= 2;
-}
-function executionPrompt(text: string): { prompt: string; plan: boolean } {
-  const plan = isImplementationPlan(text);
-  if (!plan) return { prompt: text, plan: false };
-  return {
-    plan: true,
-    prompt: `以下内容是用户已经批准的实施计划。请快速核对它与项目实际是否存在关键冲突，然后直接实施并完成必要验证；不要重新撰写、扩展或替换计划。只有遇到无法安全解决的关键冲突时才暂停说明。\n\n${text}`
-  };
 }
 async function attachGeneratedImages(session: Session, projectName: string, since: number): Promise<void> {
   try {
@@ -188,6 +166,7 @@ function handleEvent(payload: ChatEvent): void {
     // Clean it up so the composer immediately returns to the send state.
     if (finishedTask) void window.launcher.stopChat(finishedTask);
     saveNow();
+    return;
   }
   save();
 }
@@ -249,6 +228,7 @@ onUnmounted(() => { dispose?.(); saveNow(); if (copiedTimer) window.clearTimeout
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
       <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : message.role === "notice" ? "自动管理" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><template v-else-if="message.role === 'assistant'"><MarkdownMessage :content="message.text" /><ArtifactGallery v-if="message.artifacts?.length" :project-name="project.name" :images="message.artifacts" /><div class="message-actions"><button type="button" :title="copiedMessageId === message.id ? '已复制' : '复制回复'" @click="copyMessage(message)"><svg v-if="copiedMessageId !== message.id" viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="10" rx="2"/><path d="M5 13H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg><svg v-else viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9"/></svg><span>{{ copiedMessageId === message.id ? "已复制" : "复制" }}</span></button></div></template><template v-else><div v-if="message.uploads?.length" class="message-upload-images"><img v-for="image in message.uploads" :key="image.path" :src="image.preview" :alt="image.name" /></div><pre>{{ message.text }}</pre></template></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
+      <div v-if="storageWarning" class="chat-storage-warning">{{ storageWarning }}</div>
       <footer class="composer-shell">
         <div class="composer-card">
           <div v-if="images.length" class="composer-images"><figure v-for="(image, index) in images" :key="image.path"><img :src="image.preview" :alt="image.name" /><button type="button" title="移除图片" @click="images.splice(index, 1)">×</button></figure></div>

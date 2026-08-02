@@ -415,6 +415,7 @@ body { min-width: 900px; min-height: 560px; }
 .message.status { width: min(100%, 820px); min-width: 0; }
 .message.status pre { width: 100%; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
 .message.status { overflow: hidden; }
+.chat-storage-warning { margin: 0 18px 6px; padding: 8px 12px; border: 1px solid #ead9aa; border-radius: 9px; color: #765b25; background: #fffaf0; font-size: 11px; }
 .composer { padding: 10px max(24px, calc((100% - 850px) / 2)) 14px; gap: 8px; border-top: 0; background: linear-gradient(transparent, #fff 18%); }
 .composer textarea { min-height: 54px; max-height: 150px; padding: 15px 16px; border-color: #d8d8d8; border-radius: 16px; background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,.08); }
 .composer textarea:focus { border-color: #a9a9a9; box-shadow: 0 1px 7px rgba(0,0,0,.1); }

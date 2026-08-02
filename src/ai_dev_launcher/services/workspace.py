@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import urllib.request
 from pathlib import Path
@@ -19,13 +20,16 @@ class WorkspaceService:
     def tree(self, max_items: int = 600) -> dict[str, Any]:
         ignored = {".git", "node_modules", ".venv", "dist", "release", "__pycache__"}
         items: list[dict[str, Any]] = []
-        for path in sorted(self.root.rglob("*"), key=lambda item: (not item.is_dir(), str(item).casefold())):
-            relative = path.relative_to(self.root)
-            if any(part in ignored for part in relative.parts):
-                continue
-            items.append({"path": relative.as_posix(), "name": path.name, "kind": "directory" if path.is_dir() else "file"})
-            if len(items) >= max_items:
-                break
+        for current, directories, files in os.walk(self.root, topdown=True):
+            directories[:] = sorted((name for name in directories if name not in ignored), key=str.casefold)
+            files.sort(key=str.casefold)
+            base = Path(current)
+            for name, kind in [*((name, "directory") for name in directories), *((name, "file") for name in files)]:
+                path = base / name
+                relative = path.relative_to(self.root)
+                items.append({"path": relative.as_posix(), "name": name, "kind": kind})
+                if len(items) >= max_items:
+                    return {"items": items, "truncated": True}
         return {"items": items, "truncated": len(items) >= max_items}
 
     def read(self, relative_path: str) -> dict[str, Any]:
@@ -43,16 +47,22 @@ class WorkspaceService:
     def recent_images(self, since: float = 0, limit: int = 16) -> dict[str, Any]:
         supported = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
         images: list[dict[str, Any]] = []
-        for path in self.root.rglob("*"):
-            if not path.is_file() or path.suffix.casefold() not in supported:
-                continue
-            relative = path.relative_to(self.root)
-            if any(part in {".git", "node_modules", ".venv", "dist", "release"} for part in relative.parts):
-                continue
-            stat = path.stat()
-            if stat.st_mtime < since:
-                continue
-            images.append({"path": relative.as_posix(), "name": path.name, "size": stat.st_size, "modified_at": stat.st_mtime})
+        ignored = {".git", "node_modules", ".venv", "dist", "release", "__pycache__"}
+        for current, directories, files in os.walk(self.root, topdown=True):
+            directories[:] = [name for name in directories if name not in ignored]
+            base = Path(current)
+            for name in files:
+                path = base / name
+                if path.suffix.casefold() not in supported:
+                    continue
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                if stat.st_mtime < since:
+                    continue
+                relative = path.relative_to(self.root)
+                images.append({"path": relative.as_posix(), "name": name, "size": stat.st_size, "modified_at": stat.st_mtime})
         images.sort(key=lambda item: (item["modified_at"], item["path"]), reverse=True)
         return {"images": images[: max(1, min(limit, 24))]}
 

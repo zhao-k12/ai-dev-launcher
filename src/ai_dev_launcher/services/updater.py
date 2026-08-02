@@ -44,7 +44,7 @@ class PrivateToolUpdateService:
         npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
         if not npm:
             return self._result("codex", "skipped", "npm is unavailable; existing version was kept")
-        stage = self.root / "codex.next"
+        stage = self.root / f"codex.next-{uuid4().hex}"
         environment = dict(os.environ)
         command = [npm, "install", "--prefix", str(stage), "@openai/codex@latest", "--no-audit", "--no-fund"]
         return self._install("codex", stage, command, environment, Path("node_modules/.bin/codex.cmd" if os.name == "nt" else "node_modules/.bin/codex"))
@@ -80,13 +80,42 @@ class PrivateToolUpdateService:
         final_python = target / python
         if relocated.returncode != 0 or not final_executable.is_file() or not final_python.is_file():
             detail = (relocated.stderr or relocated.stdout or "relocated Headroom validation failed").strip().splitlines()[-1]
-            return self._result("headroom", "failed", detail)
+            restored = self._restore_previous("headroom")
+            return self._result("headroom", "rolled_back" if restored else "failed", detail)
         version = self.runner([str(final_executable), "--version"], final_environment)
         compression = self.runner([str(final_python), "-c", "import onnxruntime"], final_environment)
         if version.returncode != 0 or compression.returncode != 0:
             detail = (version.stderr or compression.stderr or "relocated Headroom verification failed").strip().splitlines()[-1]
-            return self._result("headroom", "failed", detail)
+            restored = self._restore_previous("headroom")
+            return self._result("headroom", "rolled_back" if restored else "failed", detail)
         return result
+
+    def _restore_previous(self, key: str) -> bool:
+        """Restore the newest verified backup after post-swap validation fails."""
+
+        target = self.root / key
+        backups = sorted(
+            self.root.glob(f"{key}.previous*"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if not backups:
+            return False
+        failed = self.root / f"{key}.failed-{uuid4().hex}"
+        try:
+            if target.exists():
+                target.rename(failed)
+            backups[0].rename(target)
+            if failed.exists():
+                shutil.rmtree(failed, ignore_errors=True)
+            return True
+        except OSError:
+            if not target.exists() and failed.exists():
+                try:
+                    failed.rename(target)
+                except OSError:
+                    pass
+            return False
 
     def _install(self, key: str, stage: Path, command: list[str], environment: Mapping[str, str], executable: Path, extra_verification: tuple[Path | str, ...] | None = None) -> dict[str, Any]:
         target = self.root / key

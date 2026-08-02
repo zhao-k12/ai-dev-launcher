@@ -21,6 +21,20 @@ def test_tree_and_read_stay_inside_project(tmp_path):
         workspace.read("../secret.txt")
 
 
+def test_tree_and_images_prune_large_dependency_directories(tmp_path):
+    dependency = tmp_path / "node_modules" / "package"
+    dependency.mkdir(parents=True)
+    (dependency / "hidden.js").write_text("large dependency", encoding="utf-8")
+    (dependency / "hidden.png").write_bytes(b"png")
+    (tmp_path / "visible.py").write_text("print('ok')", encoding="utf-8")
+    workspace = service(tmp_path)
+
+    paths = {item["path"] for item in workspace.tree()["items"]}
+    assert "visible.py" in paths
+    assert not any(path.startswith("node_modules") for path in paths)
+    assert workspace.recent_images(0)["images"] == []
+
+
 def test_git_stage_and_restore(tmp_path):
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)

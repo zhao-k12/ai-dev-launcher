@@ -78,3 +78,29 @@ def test_headroom_update_pins_working_onnx_runtime(tmp_path, monkeypatch):
     install_command = next(command for command in commands if command[0] == "uv.exe")
     assert "onnxruntime==1.19.2" in install_command
     assert install_command[install_command.index("--python") + 1] == "3.12"
+
+
+def test_headroom_relocation_failure_restores_verified_previous_version(tmp_path, monkeypatch):
+    monkeypatch.setattr("ai_dev_launcher.services.updater.os.name", "nt")
+    monkeypatch.setattr("ai_dev_launcher.services.updater.shutil.which", lambda command: "uv.exe" if "uv" in command else None)
+    target = tmp_path / "runtime" / "tools" / "headroom"
+    target.mkdir(parents=True)
+    (target / "old.txt").write_text("working", encoding="utf-8")
+
+    def runner(command, environment):
+        if command[0] == "uv.exe":
+            bin_dir = Path(environment["UV_TOOL_BIN_DIR"])
+            tool_dir = Path(environment["UV_TOOL_DIR"]) / "headroom-ai" / "Scripts"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            tool_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "headroom.exe").write_text("shim", encoding="utf-8")
+            (tool_dir / "python.exe").write_text("python", encoding="utf-8")
+            if Path(environment["UV_TOOL_DIR"]).parent == target:
+                return subprocess.CompletedProcess(command, 1, "", "relocation failed")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    result = PrivateToolUpdateService(tmp_path, runner).update_all()
+
+    headroom_result = next(item for item in result["tools"] if item["key"] == "headroom")
+    assert headroom_result["status"] == "rolled_back"
+    assert (target / "old.txt").read_text(encoding="utf-8") == "working"

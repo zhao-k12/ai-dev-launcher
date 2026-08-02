@@ -71,15 +71,15 @@ class ProjectService:
 
         project_path.mkdir()
         try:
-            project = self.add_project(normalized_name, project_path)
-            self.set_default(project.name)
+            # Prepare before registration so a failed initialization can never
+            # leave a broken project entry in the launcher configuration.
+            project = Project.create(normalized_name, project_path)
             ProjectPreparationService().prepare(project, initialize_git=True)
-            return project
+            return self.add_project(normalized_name, project_path)
         except Exception:
-            try:
-                project_path.rmdir()
-            except OSError:
-                pass
+            # This directory was created by this method and did not exist before
+            # the operation, so removing its partially generated contents is safe.
+            shutil.rmtree(project_path, ignore_errors=True)
             raise
 
     def get_project(self, name: str) -> Project:
