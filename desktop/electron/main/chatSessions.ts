@@ -48,11 +48,10 @@ export class ChatSessionManager {
     environment.PATH = [...plan.path_prepend, environment.PATH ?? ""].filter(Boolean).join(delimiter);
     for (const [key, value] of Object.entries(plan.environment_overrides)) environment[key] = value;
     const child = spawn(plan.command[0], plan.command.slice(1), { cwd: plan.cwd, env: environment, windowsHide: true });
-    // Codex 0.146+ inspects piped stdin after processing the positional prompt.
-    // An immediately closed, empty pipe makes the wrapped process finish with
-    // exit code 1 even when the turn itself completed successfully. A blank
-    // line explicitly terminates the additional-input phase.
-    child.stdin.end("\n");
+    // Headroom's Windows wrapper can lose long or non-ASCII positional prompts.
+    // The launch plan therefore uses Codex's `-` prompt and streams the exact
+    // text over stdin for both fresh and resumed sessions.
+    child.stdin.end(input.prompt, "utf8");
     this.active.set(taskId, child);
     this.activeProjects.set(taskId, input.name);
     let stdout = "";

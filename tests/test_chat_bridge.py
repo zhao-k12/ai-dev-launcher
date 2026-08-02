@@ -35,6 +35,7 @@ def test_chat_plan_passes_images_to_codex(tmp_path, monkeypatch):
         def __init__(self, **kwargs): pass
         def build_plan(self, project, use_headroom, codex_args):
             assert ("--image", str(image)) == codex_args[-3:-1]
+            assert codex_args[-1] == "-"
             return type("Plan", (), {"to_dict": lambda self: {"command": list(codex_args)}})()
 
     monkeypatch.setattr("ai_dev_launcher.bridge.LaunchService", FakeLauncher)
@@ -52,7 +53,7 @@ def test_chat_resume_uses_resume_supported_sandbox_config(tmp_path, monkeypatch)
         def build_plan(self, project, use_headroom, codex_args):
             assert codex_args == (
                 "exec", "resume", "--config", 'sandbox_mode="workspace-write"',
-                "--json", "thread-1", "continue",
+                "--json", "thread-1", "-",
             )
             return type("Plan", (), {"to_dict": lambda self: {"command": list(codex_args)}})()
 

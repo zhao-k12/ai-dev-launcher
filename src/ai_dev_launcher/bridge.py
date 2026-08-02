@@ -130,7 +130,9 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
             else:
                 args.extend(["--sandbox", "workspace-write"])
             args.extend(image_args)
-        args.append(prompt)
+        # Always stream the prompt through stdin. Passing Chinese or long prompts as a
+        # positional Windows argument is unreliable once Headroom wraps Codex.
+        args.append("-")
         launcher = LaunchService(private_tool_root=_config_dir() / "runtime" / "tools")
         return launcher.build_plan(project, use_headroom=True, codex_args=tuple(args)).to_dict()
     if action.startswith("workspace."):
