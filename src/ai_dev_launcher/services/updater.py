@@ -10,12 +10,13 @@ from datetime import UTC, datetime, timedelta
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 UpdateRunner = Callable[[list[str], Mapping[str, str]], subprocess.CompletedProcess[str]]
 
 
 def _run(command: list[str], environment: Mapping[str, str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, env=dict(environment), capture_output=True, text=True, timeout=300, check=False)
+    return subprocess.run(command, env=dict(environment), capture_output=True, text=True, timeout=900, check=False)
 
 
 class PrivateToolUpdateService:
@@ -31,7 +32,7 @@ class PrivateToolUpdateService:
         try:
             state = json.loads(state_path.read_text(encoding="utf-8"))
             last_attempt = datetime.fromisoformat(str(state.get("last_attempt")))
-            if datetime.now(UTC) - last_attempt < timedelta(hours=24):
+            if datetime.now(UTC) - last_attempt < timedelta(hours=24) and not self._private_tools_need_repair():
                 return {"tools": [], "skipped": "automatic update check already ran today"}
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             pass
@@ -52,15 +53,42 @@ class PrivateToolUpdateService:
         uv = shutil.which("uv.exe" if os.name == "nt" else "uv")
         if not uv:
             return self._result("headroom", "skipped", "uv is unavailable; existing version was kept")
-        stage = self.root / "headroom.next"
+        # A unique stage avoids Windows native-DLL locks left by an older uv
+        # environment or a still-running MCP process.
+        stage = self.root / f"headroom.next-{uuid4().hex}"
         environment = dict(os.environ)
         environment["UV_TOOL_DIR"] = str(stage / "packages")
         environment["UV_TOOL_BIN_DIR"] = str(stage / "bin")
-        command = [uv, "tool", "install", "--upgrade", "headroom-ai[proxy,mcp,code]"]
+        # ONNX Runtime 1.22+ fails DLL initialization on some fully patched
+        # Windows 10 systems. This tested Python 3.12 combination keeps
+        # Headroom's Kompress backend available without installing Torch.
+        command = [uv, "tool", "install", "--force", "--python", "3.12", "--with", "onnxruntime==1.19.2", "headroom-ai[proxy,mcp,code]"]
         executable = Path("bin/headroom.exe" if os.name == "nt" else "bin/headroom")
-        return self._install("headroom", stage, command, environment, executable)
+        python = Path("packages/headroom-ai/Scripts/python.exe" if os.name == "nt" else "packages/headroom-ai/bin/python")
+        result = self._install("headroom", stage, command, environment, executable, (python, "-c", "import onnxruntime"))
+        if result["status"] != "updated":
+            return result
+        # uv's Windows launchers remember their installation directory. The
+        # verified stage is renamed atomically, so reinstall once from cache at
+        # the stable final path to refresh those trampoline paths.
+        target = self.root / "headroom"
+        final_environment = dict(environment)
+        final_environment["UV_TOOL_DIR"] = str(target / "packages")
+        final_environment["UV_TOOL_BIN_DIR"] = str(target / "bin")
+        relocated = self.runner(command, final_environment)
+        final_executable = target / executable
+        final_python = target / python
+        if relocated.returncode != 0 or not final_executable.is_file() or not final_python.is_file():
+            detail = (relocated.stderr or relocated.stdout or "relocated Headroom validation failed").strip().splitlines()[-1]
+            return self._result("headroom", "failed", detail)
+        version = self.runner([str(final_executable), "--version"], final_environment)
+        compression = self.runner([str(final_python), "-c", "import onnxruntime"], final_environment)
+        if version.returncode != 0 or compression.returncode != 0:
+            detail = (version.stderr or compression.stderr or "relocated Headroom verification failed").strip().splitlines()[-1]
+            return self._result("headroom", "failed", detail)
+        return result
 
-    def _install(self, key: str, stage: Path, command: list[str], environment: Mapping[str, str], executable: Path) -> dict[str, Any]:
+    def _install(self, key: str, stage: Path, command: list[str], environment: Mapping[str, str], executable: Path, extra_verification: tuple[Path | str, ...] | None = None) -> dict[str, Any]:
         target = self.root / key
         backup = self.root / f"{key}.previous"
         if stage.exists():
@@ -75,8 +103,20 @@ class PrivateToolUpdateService:
             if verification.returncode != 0:
                 detail = (verification.stderr or verification.stdout or "version verification failed").strip().splitlines()[-1]
                 return self._result(key, "rolled_back" if target.exists() else "failed", detail)
+            if extra_verification:
+                check = [str(stage / item) if isinstance(item, Path) else item for item in extra_verification]
+                verification = self.runner(check, environment)
+                if verification.returncode != 0:
+                    detail = (verification.stderr or verification.stdout or "compression runtime verification failed").strip().splitlines()[-1]
+                    return self._result(key, "rolled_back" if target.exists() else "failed", detail)
             if backup.exists():
-                shutil.rmtree(backup)
+                try:
+                    shutil.rmtree(backup)
+                except OSError:
+                    # Windows may keep native extension files locked while an
+                    # older Headroom/MCP process is still alive. Preserve that
+                    # recoverable backup and rotate to a unique backup path.
+                    backup = self.root / f"{key}.previous-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
             if target.exists():
                 target.rename(backup)
             stage.rename(target)
@@ -92,3 +132,16 @@ class PrivateToolUpdateService:
     @staticmethod
     def _result(key: str, status: str, detail: str) -> dict[str, str]:
         return {"key": key, "status": status, "detail": detail}
+
+    def _private_tools_need_repair(self) -> bool:
+        headroom = self.root / "headroom"
+        executable = headroom / ("bin/headroom.exe" if os.name == "nt" else "bin/headroom")
+        python = headroom / ("packages/headroom-ai/Scripts/python.exe" if os.name == "nt" else "packages/headroom-ai/bin/python")
+        if not executable.is_file() or not python.is_file():
+            return True
+        try:
+            version = self.runner([str(executable), "--version"], os.environ)
+            compression = self.runner([str(python), "-c", "import onnxruntime"], os.environ)
+            return version.returncode != 0 or compression.returncode != 0
+        except (OSError, subprocess.SubprocessError):
+            return True

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -38,14 +39,16 @@ class RuntimeService:
         checks = [
             self._check("codex_config", "Codex 桌面端配置独立", True, "启动器未修改全局 Codex 配置"),
             self._check("headroom", "Headroom 已就绪", bool(headroom and headroom.is_available), headroom.detail if headroom else None),
+            self._compression_check(Path(headroom.path)) if headroom and headroom.is_available and headroom.path else self._warning("headroom_compression", "Headroom 深度压缩", "等待 Headroom 可用后检查"),
             self._check("codex", "Codex CLI 可用", bool(codex and codex.is_available), codex.detail if codex else None),
             self._check("recovery", "未发现异常退出残留", not previous.get("dirty", False), None),
         ]
-        ready = all(item["status"] == "ready" for item in checks)
+        ready = all(item["status"] != "error" for item in checks)
         return {
             "status": "ready" if ready else "attention",
             "checks": checks,
             "headroom_version": headroom.version if headroom else None,
+            "headroom_compression": next((item["status"] == "ready" for item in checks if item["key"] == "headroom_compression"), False),
             "codex_version": codex.version if codex else None,
             "headroom_port": previous.get("headroom_port"),
             "isolation": "process",
@@ -86,3 +89,26 @@ class RuntimeService:
     @staticmethod
     def _check(key: str, label: str, ready: bool, detail: str | None) -> dict[str, Any]:
         return {"key": key, "label": label, "status": "ready" if ready else "error", "detail": detail}
+
+    @staticmethod
+    def _warning(key: str, label: str, detail: str) -> dict[str, Any]:
+        return {"key": key, "label": label, "status": "warning", "detail": detail}
+
+    def _compression_check(self, headroom_path: Path) -> dict[str, Any]:
+        candidates: list[Path] = []
+        private_root = self.runtime_dir / "tools" / "headroom"
+        if private_root in headroom_path.parents:
+            candidates.append(private_root / ("packages/headroom-ai/Scripts/python.exe" if os.name == "nt" else "packages/headroom-ai/bin/python"))
+        app_data = Path(os.environ.get("APPDATA", ""))
+        if str(app_data):
+            candidates.append(app_data / "uv" / "tools" / "headroom-ai" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))
+        for python in candidates:
+            if not python.is_file():
+                continue
+            try:
+                completed = subprocess.run([str(python), "-c", "import onnxruntime"], capture_output=True, text=True, timeout=15, check=False)
+                if completed.returncode == 0:
+                    return self._check("headroom_compression", "Headroom 深度压缩", True, "Kompress 运行环境已验证")
+            except (OSError, subprocess.SubprocessError):
+                continue
+        return self._warning("headroom_compression", "Headroom 深度压缩", "ONNX 运行环境异常，启动器正在自动修复；基础代理仍可使用")

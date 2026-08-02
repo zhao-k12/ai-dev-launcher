@@ -59,6 +59,35 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("automatically starts a fresh Codex topic after the history threshold", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    vi.mocked(window.launcher.startChat).mockResolvedValue({ task_id: "task-rotate" });
+    localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
+      id: "session-1", codexSessionId: "old-codex-thread", name: "长期任务", updatedAt: new Date().toISOString(),
+      turnCount: 20, lastInputTokens: 70_000,
+      messages: Array.from({ length: 20 }, (_, index) => ({ id: `user-${index}`, role: "user", text: `消息 ${index}` }))
+    }]));
+    const view = await render();
+    setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "继续完成修改"); await nextTick();
+    clickButton(view.host, "发送"); await flush();
+    expect(window.launcher.startChat).toHaveBeenCalledWith(expect.objectContaining({ session_id: undefined, prompt: "继续完成修改" }));
+    expect(view.host.textContent).toContain("后台已自动开启新话题");
+    view.unmount();
+  });
+
+  it("submits an approved implementation plan for direct execution", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    vi.mocked(window.launcher.startChat).mockResolvedValue({ task_id: "task-plan" });
+    const plan = `实施计划\n\n阶段一：修改文件\n${"完成模块实现和自动测试。".repeat(30)}\n\n验收标准：测试全部通过。`;
+    const view = await render();
+    setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, plan); await nextTick();
+    clickButton(view.host, "发送"); await flush();
+    expect(window.launcher.startChat).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.stringContaining("直接实施") }));
+    expect(vi.mocked(window.launcher.startChat).mock.calls[0][0].prompt).toContain(plan);
+    expect(view.host.textContent).toContain("不再重新制定计划");
+    view.unmount();
+  });
+
   it("creates a project from a name and parent location", async () => {
     vi.mocked(window.launcher.createProject).mockResolvedValue({ project });
     vi.mocked(window.launcher.listProjects).mockResolvedValueOnce({ projects: [], default_project: null }).mockResolvedValueOnce({ projects: [project], default_project: "my-app" });

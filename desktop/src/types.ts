@@ -18,7 +18,7 @@ export interface UpdateProjectInput { current_name: string; name: string; parent
 export interface RuntimeCheck {
   key: string;
   label: string;
-  status: "ready" | "error";
+  status: "ready" | "warning" | "error";
   detail: string | null;
 }
 
@@ -26,6 +26,7 @@ export interface RuntimeStatus {
   status: "ready" | "attention";
   checks: RuntimeCheck[];
   headroom_version: string | null;
+  headroom_compression?: boolean;
   codex_version: string | null;
   headroom_port: number | null;
   isolation: "process";

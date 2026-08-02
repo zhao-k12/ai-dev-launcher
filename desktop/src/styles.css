@@ -73,6 +73,7 @@ h1, h2, p { margin-top: 0; }
 .readiness-card i, .status-row i { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: white; font-style: normal; font-weight: 700; }
 .readiness-card i.ready, .status-row i.ready { background: #1e9c48; }
 .readiness-card i.error, .status-row i.error { background: #d99a17; }
+.status-row i.warning { background: #d99a17; }
 .readiness-card article span { color: #697482; font-size: 13px; }
 .enter-project { align-self: center; min-width: 220px; margin-top: 28px; font-size: 17px; }
 .eyebrow { font-weight: 650; color: #4c5665; margin-bottom: 25px; }
@@ -356,6 +357,9 @@ body { min-width: 900px; min-height: 560px; }
 .message.user pre { padding: 10px 14px; color: #292929; background: #f1f1f1; border: 0; border-radius: 16px; }
 .message.tool pre { padding: 12px 14px; border: 1px solid #e4e4e4; border-radius: 10px; background: #f7f7f7; font-size: 12px; }
 .message.tool { color: #777; }
+.message.notice { align-self: center; color: #765b25; text-align: center; }
+.message.notice > span { display: none; }
+.message.notice pre { padding: 7px 12px; border: 1px solid #eee1bd; border-radius: 9px; color: #765b25; background: #fffaf0; font-size: 11px; white-space: pre-wrap; }
 .tool-details { width: 100%; min-width: 0; border: 1px solid #e4e4e4; border-radius: 10px; background: #f7f7f7; overflow: hidden; }
 .tool-details summary { padding: 10px 14px; cursor: pointer; color: #6d6d6d; font-size: 12px; user-select: none; }
 .tool-details[open] summary { border-bottom: 1px solid #e4e4e4; }

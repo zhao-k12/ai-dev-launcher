@@ -12,7 +12,7 @@ def test_version():
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert "AI Dev Launcher 2.3.2" in result.stdout
+    assert "AI Dev Launcher 2.4.0" in result.stdout
 
 
 def test_no_args_shows_help():
