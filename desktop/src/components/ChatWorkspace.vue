@@ -23,6 +23,7 @@ const messageList = ref<HTMLElement | null>(null);
 const copiedMessageId = ref<string | null>(null);
 let dispose: (() => void) | undefined;
 let copiedTimer: number | undefined;
+let saveTimer: number | undefined;
 const active = computed(() => sessions.value.find((item) => item.id === activeId.value) ?? null);
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -30,9 +31,14 @@ const AUTO_ROTATE_TOKENS = 180_000;
 const AUTO_ROTATE_TURNS = 40;
 const AUTO_ROTATE_CHARS = 500_000;
 
-function save(): void {
+function saveNow(key = storageKey.value): void {
+  if (saveTimer) { window.clearTimeout(saveTimer); saveTimer = undefined; }
   const persisted = sessions.value.map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status").map(({ uploads: _uploads, ...message }) => message) }));
-  localStorage.setItem(storageKey.value, JSON.stringify(persisted));
+  localStorage.setItem(key, JSON.stringify(persisted));
+}
+function save(): void {
+  if (saveTimer) window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(saveNow, 180);
 }
 async function scrollToLatest(): Promise<void> {
   await nextTick();
@@ -144,7 +150,7 @@ function handleEvent(payload: ChatEvent): void {
         : `Codex 已退出，代码 ${payload.exit_code}`;
     }
     if (!payload.cancelled && payload.exit_code === 0 && startedAt && projectName) void attachGeneratedImages(target, projectName, startedAt);
-    save();
+    saveNow();
     return;
   }
   const event = payload.event ?? {};
@@ -181,6 +187,7 @@ function handleEvent(payload: ChatEvent): void {
     // Headroom may keep its wrapper alive after Codex has completed the turn.
     // Clean it up so the composer immediately returns to the send state.
     if (finishedTask) void window.launcher.stopChat(finishedTask);
+    saveNow();
   }
   save();
 }
@@ -228,9 +235,12 @@ async function copyMessage(message: Message): Promise<void> {
   if (copiedTimer) window.clearTimeout(copiedTimer);
   copiedTimer = window.setTimeout(() => { copiedMessageId.value = null; }, 1600);
 }
-watch(() => props.project.path, load);
+watch(() => props.project.path, (_path, previousPath) => {
+  if (previousPath) saveNow(`ai-dev-launcher:sessions:${previousPath}`);
+  load();
+});
 onMounted(() => { load(); dispose = window.launcher.onChatEvent(handleEvent); });
-onUnmounted(() => { dispose?.(); if (copiedTimer) window.clearTimeout(copiedTimer); });
+onUnmounted(() => { dispose?.(); saveNow(); if (copiedTimer) window.clearTimeout(copiedTimer); });
 </script>
 
 <template>

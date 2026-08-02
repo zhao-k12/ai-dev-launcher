@@ -193,6 +193,8 @@ describe("App v2 Phase 1", () => {
     setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "执行修改"); await nextTick();
     clickButton(view.host, "发送"); await flush();
     const taskId = vi.mocked(window.launcher.startChat).mock.calls[0][0].task_id!;
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+    storageWrite.mockClear();
     chatListener?.({ task_id: taskId, type: "codex", event: { type: "item.completed", item: { type: "command_execution", command: "test one", aggregated_output: "one" } } });
     chatListener?.({ task_id: taskId, type: "codex", event: { type: "item.completed", item: { type: "command_execution", command: "test two", aggregated_output: "two" } } });
     chatListener?.({ task_id: taskId, type: "codex", event: { type: "turn.completed", usage: { input_tokens: 1000 } } });
@@ -203,6 +205,8 @@ describe("App v2 Phase 1", () => {
     expect(view.host.querySelector('[data-testid="stop-chat"]')).toBeNull();
     expect(view.host.querySelector('[data-testid="send-chat"]')).not.toBeNull();
     expect(window.launcher.stopChat).toHaveBeenCalledWith(taskId);
+    expect(storageWrite).toHaveBeenCalledTimes(1);
+    storageWrite.mockRestore();
     view.unmount();
   });
 

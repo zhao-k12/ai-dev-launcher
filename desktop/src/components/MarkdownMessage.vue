@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from "vue";
-import MarkdownIt from "markdown-it";
+import { renderMarkdown } from "../markdownRenderer";
 
 const props = defineProps<{ content: string }>();
 const copiedIndex = ref<number | null>(null);
 let copiedTimer: number | undefined;
-interface Segment { type: "markdown" | "code"; content: string; language?: string; }
+interface Segment { type: "markdown" | "code"; content: string; language?: string; html?: string; }
 
-const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true, typographer: true });
 const segments = computed<Segment[]>(() => {
   const result: Segment[] = [];
   const fence = /```([^\r\n`]*)\r?\n([\s\S]*?)```/g;
@@ -20,9 +19,8 @@ const segments = computed<Segment[]>(() => {
   }
   if (position < props.content.length) result.push({ type: "markdown", content: props.content.slice(position) });
   if (!result.length) result.push({ type: "markdown", content: props.content });
-  return result;
+  return result.map((segment) => segment.type === "markdown" ? { ...segment, html: renderMarkdown(segment.content) } : segment);
 });
-const render = (content: string): string => markdown.render(content);
 const displayLanguage = (language?: string): string => ({ ts: "TypeScript", js: "JavaScript", py: "Python", ps1: "PowerShell" }[language?.toLowerCase() ?? ""] ?? language ?? "代码");
 async function copyCode(content: string, index: number): Promise<void> {
   await window.launcher.copyText(content);
@@ -36,7 +34,7 @@ onUnmounted(() => { if (copiedTimer) window.clearTimeout(copiedTimer); });
 <template>
   <div class="markdown-message">
     <template v-for="(segment, index) in segments" :key="index">
-      <div v-if="segment.type === 'markdown'" class="markdown-body" v-html="render(segment.content)"></div>
+      <div v-if="segment.type === 'markdown'" class="markdown-body" v-html="segment.html"></div>
       <details v-else class="inline-code-details">
         <summary>
           <span>代码</span>
