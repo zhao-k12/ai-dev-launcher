@@ -59,6 +59,25 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("opens a project at the latest conversation message after layout settles", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
+      id: "session-latest", name: "历史会话", updatedAt: new Date().toISOString(),
+      messages: [
+        { id: "old", role: "user", text: "第一行" },
+        { id: "latest", role: "assistant", text: "最新消息" }
+      ]
+    }]));
+    const view = await render();
+    const list = view.host.querySelector('[data-testid="message-list"]') as HTMLElement;
+    Object.defineProperty(list, "scrollHeight", { configurable: true, value: 900 });
+    list.scrollTop = 0;
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    expect(list.scrollTop).toBe(900);
+    expect(view.host.textContent).toContain("最新消息");
+    view.unmount();
+  });
+
   it("automatically starts a fresh Codex topic after the history threshold", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
     vi.mocked(window.launcher.startChat).mockResolvedValue({ task_id: "task-rotate" });

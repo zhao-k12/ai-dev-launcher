@@ -28,6 +28,8 @@ const copiedMessageId = ref<string | null>(null);
 let dispose: (() => void) | undefined;
 let copiedTimer: number | undefined;
 let saveTimer: number | undefined;
+let scrollTimer: number | undefined;
+let scrollFrame: number | undefined;
 const active = computed(() => sessions.value.find((item) => item.id === activeId.value) ?? null);
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -45,7 +47,16 @@ function save(): void {
 }
 async function scrollToLatest(): Promise<void> {
   await nextTick();
-  if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
+  const scroll = (): void => {
+    if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight;
+  };
+  scroll();
+  if (scrollFrame) window.cancelAnimationFrame(scrollFrame);
+  scrollFrame = window.requestAnimationFrame(() => {
+    scrollFrame = window.requestAnimationFrame(scroll);
+  });
+  if (scrollTimer) window.clearTimeout(scrollTimer);
+  scrollTimer = window.setTimeout(scroll, 160);
 }
 function load(): void {
   sessions.value = loadSessions<Session>(storageKey.value)
@@ -221,7 +232,7 @@ watch(() => props.project.path, (_path, previousPath) => {
 });
 watch(runningTask, (task) => emit("runningChange", Boolean(task)), { immediate: true });
 onMounted(() => { load(); dispose = window.launcher.onChatEvent(handleEvent); });
-onUnmounted(() => { dispose?.(); saveNow(); if (copiedTimer) window.clearTimeout(copiedTimer); });
+onUnmounted(() => { dispose?.(); saveNow(); if (copiedTimer) window.clearTimeout(copiedTimer); if (scrollTimer) window.clearTimeout(scrollTimer); if (scrollFrame) window.cancelAnimationFrame(scrollFrame); });
 </script>
 
 <template>
