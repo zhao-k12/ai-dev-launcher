@@ -64,14 +64,31 @@ describe("App v2 Phase 1", () => {
     vi.mocked(window.launcher.startChat).mockResolvedValue({ task_id: "task-rotate" });
     localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
       id: "session-1", codexSessionId: "old-codex-thread", name: "长期任务", updatedAt: new Date().toISOString(),
-      turnCount: 20, lastInputTokens: 70_000,
-      messages: Array.from({ length: 20 }, (_, index) => ({ id: `user-${index}`, role: "user", text: `消息 ${index}` }))
+      turnCount: 40, lastInputTokens: 170_000,
+      messages: Array.from({ length: 40 }, (_, index) => ({ id: `user-${index}`, role: "user", text: `消息 ${index}` }))
     }]));
     const view = await render();
     setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "继续完成修改"); await nextTick();
     clickButton(view.host, "发送"); await flush();
-    expect(window.launcher.startChat).toHaveBeenCalledWith(expect.objectContaining({ session_id: undefined, prompt: "继续完成修改" }));
-    expect(view.host.textContent).toContain("后台已自动开启新话题");
+    expect(window.launcher.startChat).toHaveBeenCalledWith(expect.objectContaining({ session_id: undefined, prompt: expect.stringContaining("用户最新消息：\n继续完成修改") }));
+    expect(vi.mocked(window.launcher.startChat).mock.calls[0][0].prompt).toContain("消息 39");
+    expect(view.host.textContent).toContain("已自动续接到新会话");
+    view.unmount();
+  });
+
+  it("does not rotate again just because retained UI history is long", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    vi.mocked(window.launcher.startChat).mockResolvedValue({ task_id: "task-continue" });
+    localStorage.setItem(`ai-dev-launcher:sessions:${project.path}`, JSON.stringify([{
+      id: "session-1", codexSessionId: "current-codex-thread", name: "长期任务", updatedAt: new Date().toISOString(),
+      turnCount: 1, lastInputTokens: 12_000, topicChars: 200,
+      messages: Array.from({ length: 80 }, (_, index) => ({ id: `old-${index}`, role: index % 2 ? "assistant" : "user", text: "旧界面记录".repeat(200) }))
+    }]));
+    const view = await render();
+    setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "开发"); await nextTick();
+    clickButton(view.host, "发送"); await flush();
+    expect(window.launcher.startChat).toHaveBeenCalledWith(expect.objectContaining({ session_id: "current-codex-thread", prompt: "开发" }));
+    expect(view.host.textContent).not.toContain("自动续接到新会话");
     view.unmount();
   });
 
@@ -229,6 +246,9 @@ describe("App v2 Phase 1", () => {
     await vi.waitFor(() => expect(window.launcher.saveClipboardImage).toHaveBeenCalledOnce());
     await flush();
     expect(view.host.querySelector(".composer-images img")).not.toBeNull();
+    vi.mocked(window.launcher.startChat).mockResolvedValue({ task_id: "task-image" });
+    clickButton(view.host, "发送"); await flush();
+    expect(view.host.querySelector(".message-upload-images img")).not.toBeNull();
     view.unmount();
   });
 

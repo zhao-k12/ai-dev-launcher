@@ -355,6 +355,8 @@ body { min-width: 900px; min-height: 560px; }
 .message pre { padding: 0; border: 0; border-radius: 0; background: transparent; color: #292929; font-size: 14px; line-height: 1.65; }
 .message.user { width: auto; max-width: min(70%, 680px); align-self: flex-end; }
 .message.user pre { padding: 10px 14px; color: #292929; background: #f1f1f1; border: 0; border-radius: 16px; }
+.message-upload-images { margin-bottom: 7px; display: flex; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.message-upload-images img { width: 132px; height: 96px; object-fit: cover; border: 1px solid #dedede; border-radius: 12px; background: #f1f1f1; }
 .message.tool pre { padding: 12px 14px; border: 1px solid #e4e4e4; border-radius: 10px; background: #f7f7f7; font-size: 12px; }
 .message.tool { color: #777; }
 .message.notice { align-self: center; color: #765b25; text-align: center; }

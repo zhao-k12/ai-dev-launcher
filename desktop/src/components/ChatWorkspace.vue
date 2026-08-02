@@ -5,9 +5,9 @@ import ArtifactGallery from "./ArtifactGallery.vue";
 import MarkdownMessage from "./MarkdownMessage.vue";
 
 type Permission = "standard" | "full";
-interface Message { id: string; role: "user" | "assistant" | "tool" | "status" | "notice"; text: string; artifacts?: ImageArtifact[]; }
-interface Session { id: string; codexSessionId?: string; name: string; messages: Message[]; updatedAt: string; turnCount?: number; lastInputTokens?: number; }
 interface PendingImage { path: string; name: string; preview: string; }
+interface Message { id: string; role: "user" | "assistant" | "tool" | "status" | "notice"; text: string; artifacts?: ImageArtifact[]; uploads?: PendingImage[]; }
+interface Session { id: string; codexSessionId?: string; name: string; messages: Message[]; updatedAt: string; turnCount?: number; lastInputTokens?: number; topicChars?: number; }
 const props = defineProps<{ project: Project; runtime: RuntimeStatus | null }>();
 const sessions = ref<Session[]>([]);
 const activeId = ref("");
@@ -26,12 +26,12 @@ let copiedTimer: number | undefined;
 const active = computed(() => sessions.value.find((item) => item.id === activeId.value) ?? null);
 const storageKey = computed(() => `ai-dev-launcher:sessions:${props.project.path}`);
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-const AUTO_ROTATE_TOKENS = 80_000;
-const AUTO_ROTATE_TURNS = 20;
-const AUTO_ROTATE_CHARS = 320_000;
+const AUTO_ROTATE_TOKENS = 180_000;
+const AUTO_ROTATE_TURNS = 40;
+const AUTO_ROTATE_CHARS = 500_000;
 
 function save(): void {
-  const persisted = sessions.value.map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status") }));
+  const persisted = sessions.value.map((session) => ({ ...session, messages: session.messages.filter((message) => message.role !== "status").map(({ uploads: _uploads, ...message }) => message) }));
   localStorage.setItem(storageKey.value, JSON.stringify(persisted));
 }
 async function scrollToLatest(): Promise<void> {
@@ -65,16 +65,23 @@ function numericUsage(event: Record<string, unknown>, key: string): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 function shouldRotate(session: Session): boolean {
-  const turns = Math.max(session.turnCount ?? 0, session.messages.filter((message) => message.role === "user").length);
-  const characters = session.messages.reduce((total, message) => total + message.text.length, 0);
-  return Boolean(session.codexSessionId) && ((session.lastInputTokens ?? 0) >= AUTO_ROTATE_TOKENS || turns >= AUTO_ROTATE_TURNS || characters >= AUTO_ROTATE_CHARS);
+  return Boolean(session.codexSessionId) && ((session.lastInputTokens ?? 0) >= AUTO_ROTATE_TOKENS || (session.turnCount ?? 0) >= AUTO_ROTATE_TURNS || (session.topicChars ?? 0) >= AUTO_ROTATE_CHARS);
 }
-function rotateSession(session: Session): void {
+function recentHandoff(session: Session): string {
+  const relevant = session.messages.filter((message) => message.role === "user" || message.role === "assistant").slice(-12);
+  let transcript = relevant.map((message) => `${message.role === "user" ? "用户" : "Codex"}：${message.text}`).join("\n\n");
+  if (transcript.length > 18_000) transcript = transcript.slice(-18_000);
+  return transcript;
+}
+function rotateSession(session: Session): string {
+  const handoff = recentHandoff(session);
   session.codexSessionId = undefined;
   session.turnCount = 0;
   session.lastInputTokens = 0;
-  session.messages.push({ id: uid(), role: "notice", text: "历史上下文已达到节省阈值，后台已自动开启新话题。界面中的聊天记录仍保留。" });
+  session.topicChars = 0;
+  session.messages.push({ id: uid(), role: "notice", text: "当前后台会话已达到较高上下文阈值，已自动续接到新会话，并携带最近对话作为任务交接。界面聊天记录仍保留。" });
   save();
+  return handoff;
 }
 function isImplementationPlan(text: string): boolean {
   if (text.length < 240) return false;
@@ -141,7 +148,10 @@ function handleEvent(payload: ChatEvent): void {
   if (type === "item.completed" || type.endsWith("message.completed")) {
     const item = (event.item ?? {}) as Record<string, unknown>;
     const text = eventText(event);
-    if (text) appendTo(target, item.type === "agent_message" ? "assistant" : "tool", text);
+    if (text) {
+      appendTo(target, item.type === "agent_message" ? "assistant" : "tool", text);
+      if (item.type === "agent_message") target.topicChars = (target.topicChars ?? 0) + text.length;
+    }
     else if (item.type === "command_execution") appendTo(target, "tool", `${String(item.command ?? "命令")}\n${String(item.aggregated_output ?? "")}`.trim());
   }
   if (type === "turn.completed") {
@@ -153,17 +163,24 @@ function handleEvent(payload: ChatEvent): void {
 }
 async function send(): Promise<void> {
   const text = prompt.value.trim() || (images.value.length ? "请分析这些图片。" : ""); if (!text || !active.value || runningTask.value) return;
-  if (shouldRotate(active.value)) rotateSession(active.value);
+  const handoff = shouldRotate(active.value) ? rotateSession(active.value) : "";
   const prepared = executionPrompt(text);
+  const submittedPrompt = handoff
+    ? `这是从同一任务的上一后台会话自动续接过来的最近上下文。请保持任务连续性，不要重新开始需求分析：\n\n${handoff}\n\n用户最新消息：\n${prepared.prompt}`
+    : prepared.prompt;
+  const submittedImages = [...images.value];
   const imagePaths = images.value.map((item) => item.path);
   error.value = ""; prompt.value = ""; images.value = [];
   if (active.value.name === "新会话") active.value.name = text.slice(0, 24);
-  append("user", text);
+  active.value.messages.push({ id: uid(), role: "user", text, uploads: submittedImages });
+  active.value.topicChars = (active.value.topicChars ?? 0) + text.length;
+  active.value.updatedAt = new Date().toISOString();
+  save(); void scrollToLatest();
   if (prepared.plan) append("notice", "已识别为批准后的实施计划，将直接交给 Codex 执行，不再重新制定计划。");
   append("status", "Codex 正在思考和执行…");
   const taskId = uid(); runningTask.value = taskId; runningSessionId.value = active.value.id;
   runningStartedAt.value = Date.now() / 1000; runningProjectName.value = props.project.name;
-  try { await window.launcher.startChat({ task_id: taskId, name: props.project.name, prompt: prepared.prompt, permission: permission.value, session_id: active.value.codexSessionId, images: imagePaths }); }
+  try { await window.launcher.startChat({ task_id: taskId, name: props.project.name, prompt: submittedPrompt, permission: permission.value, session_id: active.value.codexSessionId, images: imagePaths }); }
   catch (reason) { runningTask.value = null; runningSessionId.value = null; runningStartedAt.value = null; runningProjectName.value = null; error.value = reason instanceof Error ? reason.message : String(reason); }
 }
 function fileAsDataUrl(file: File): Promise<string> { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); }); }
@@ -197,7 +214,7 @@ onUnmounted(() => { dispose?.(); if (copiedTimer) window.clearTimeout(copiedTime
   <section class="chat-workspace">
     <div class="conversation">
       <div v-if="permission === 'full'" class="risk-banner">完全访问允许 Codex 操作项目外文件且不询问审批，请确认当前任务可信。</div>
-      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : message.role === "notice" ? "自动管理" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><template v-else-if="message.role === 'assistant'"><MarkdownMessage :content="message.text" /><ArtifactGallery v-if="message.artifacts?.length" :project-name="project.name" :images="message.artifacts" /><div class="message-actions"><button type="button" :title="copiedMessageId === message.id ? '已复制' : '复制回复'" @click="copyMessage(message)"><svg v-if="copiedMessageId !== message.id" viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="10" rx="2"/><path d="M5 13H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg><svg v-else viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9"/></svg><span>{{ copiedMessageId === message.id ? "已复制" : "复制" }}</span></button></div></template><pre v-else>{{ message.text }}</pre></article></div>
+      <div ref="messageList" class="message-list" data-testid="message-list"><div v-if="!active?.messages.length" class="chat-empty"><div class="chat-mark">✳</div><strong>有什么可以帮你？</strong><span>直接描述任务，Codex 将在当前项目中工作。</span></div><article v-for="message in active?.messages ?? []" :key="message.id" :class="['message', message.role]"><span>{{ message.role === "user" ? "你" : message.role === "assistant" ? "Codex" : message.role === "tool" ? "执行详情" : message.role === "notice" ? "自动管理" : "状态" }}</span><details v-if="message.role === 'tool'" class="tool-details"><summary>已完成代码或工具操作（点击查看）</summary><pre>{{ message.text }}</pre></details><template v-else-if="message.role === 'assistant'"><MarkdownMessage :content="message.text" /><ArtifactGallery v-if="message.artifacts?.length" :project-name="project.name" :images="message.artifacts" /><div class="message-actions"><button type="button" :title="copiedMessageId === message.id ? '已复制' : '复制回复'" @click="copyMessage(message)"><svg v-if="copiedMessageId !== message.id" viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="6" width="9" height="10" rx="2"/><path d="M5 13H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg><svg v-else viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9"/></svg><span>{{ copiedMessageId === message.id ? "已复制" : "复制" }}</span></button></div></template><template v-else><div v-if="message.uploads?.length" class="message-upload-images"><img v-for="image in message.uploads" :key="image.path" :src="image.preview" :alt="image.name" /></div><pre>{{ message.text }}</pre></template></article></div>
       <div v-if="error" class="chat-error">{{ error }}</div>
       <footer class="composer-shell">
         <div class="composer-card">
