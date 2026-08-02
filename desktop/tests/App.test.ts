@@ -185,6 +185,27 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("groups tool details for one turn and becomes idle on turn completion", async () => {
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: project.name });
+    vi.mocked(window.launcher.startChat).mockImplementation(async (input) => ({ task_id: input.task_id! }));
+    vi.mocked(window.launcher.stopChat).mockResolvedValue({ stopped: true });
+    const view = await render();
+    setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "执行修改"); await nextTick();
+    clickButton(view.host, "发送"); await flush();
+    const taskId = vi.mocked(window.launcher.startChat).mock.calls[0][0].task_id!;
+    chatListener?.({ task_id: taskId, type: "codex", event: { type: "item.completed", item: { type: "command_execution", command: "test one", aggregated_output: "one" } } });
+    chatListener?.({ task_id: taskId, type: "codex", event: { type: "item.completed", item: { type: "command_execution", command: "test two", aggregated_output: "two" } } });
+    chatListener?.({ task_id: taskId, type: "codex", event: { type: "turn.completed", usage: { input_tokens: 1000 } } });
+    await flush();
+    expect(view.host.querySelectorAll("details.tool-details")).toHaveLength(1);
+    expect(view.host.querySelector("details.tool-details")?.textContent).toContain("test one");
+    expect(view.host.querySelector("details.tool-details")?.textContent).toContain("test two");
+    expect(view.host.querySelector('[data-testid="stop-chat"]')).toBeNull();
+    expect(view.host.querySelector('[data-testid="send-chat"]')).not.toBeNull();
+    expect(window.launcher.stopChat).toHaveBeenCalledWith(taskId);
+    view.unmount();
+  });
+
   it("renders assistant markdown and collapses fenced code", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     vi.mocked(window.launcher.copyText).mockResolvedValue({ copied: true });

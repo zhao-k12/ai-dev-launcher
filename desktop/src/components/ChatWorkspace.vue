@@ -47,7 +47,19 @@ function load(): void {
   void scrollToLatest();
 }
 function newSession(): void { const item: Session = { id: uid(), name: "新会话", messages: [], updatedAt: new Date().toISOString() }; sessions.value.unshift(item); activeId.value = item.id; save(); void scrollToLatest(); }
-function appendTo(session: Session | null, role: Message["role"], text: string): void { if (!session) return; session.messages.push({ id: uid(), role, text }); session.updatedAt = new Date().toISOString(); save(); if (session.id === activeId.value) void scrollToLatest(); }
+function appendTo(session: Session | null, role: Message["role"], text: string): void {
+  if (!session) return;
+  if (role === "tool") {
+    let lastUser = -1;
+    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+      if (session.messages[index].role === "user") { lastUser = index; break; }
+    }
+    const group = session.messages.slice(lastUser + 1).find((message) => message.role === "tool");
+    if (group) group.text = `${group.text}\n\n──────────\n\n${text}`;
+    else session.messages.push({ id: uid(), role, text });
+  } else session.messages.push({ id: uid(), role, text });
+  session.updatedAt = new Date().toISOString(); save(); if (session.id === activeId.value) void scrollToLatest();
+}
 function append(role: Message["role"], text: string): void { appendTo(active.value, role, text); }
 function clearStatus(session: Session): void { session.messages = session.messages.filter((message) => message.role !== "status"); }
 function setStatus(session: Session, text: string): void {
@@ -158,6 +170,17 @@ function handleEvent(payload: ChatEvent): void {
     target.turnCount = (target.turnCount ?? 0) + 1;
     target.lastInputTokens = Math.max(target.lastInputTokens ?? 0, numericUsage(event, "input_tokens"));
     clearStatus(target);
+    const finishedTask = runningTask.value;
+    const startedAt = runningStartedAt.value;
+    const projectName = runningProjectName.value;
+    runningTask.value = null;
+    runningSessionId.value = null;
+    runningStartedAt.value = null;
+    runningProjectName.value = null;
+    if (startedAt && projectName) void attachGeneratedImages(target, projectName, startedAt);
+    // Headroom may keep its wrapper alive after Codex has completed the turn.
+    // Clean it up so the composer immediately returns to the send state.
+    if (finishedTask) void window.launcher.stopChat(finishedTask);
   }
   save();
 }
