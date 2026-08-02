@@ -63,5 +63,13 @@ def test_recent_images_and_preview_path_stay_inside_project(tmp_path):
 
     assert result["images"][0]["path"] == "关键帧/S01.png"
     assert workspace.image_path("关键帧/S01.png")["path"] == str(image.resolve())
+    assert workspace.image_paths(["关键帧/S01.png"])["images"][0]["relative_path"] == "关键帧/S01.png"
     with pytest.raises(ValueError):
         workspace.image_path("../outside.png")
+
+
+def test_image_preview_batch_is_bounded(tmp_path):
+    workspace = service(tmp_path)
+
+    with pytest.raises(ValueError, match="24"):
+        workspace.image_paths([f"image-{index}.png" for index in range(25)])

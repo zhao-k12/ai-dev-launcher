@@ -79,6 +79,11 @@ class WorkspaceService:
             raise ValueError("Image is too large to preview")
         return {"path": str(path), "name": path.name}
 
+    def image_paths(self, relative_paths: list[str]) -> dict[str, Any]:
+        if len(relative_paths) > 24:
+            raise ValueError("At most 24 images can be previewed at once")
+        return {"images": [self.image_path(path) | {"relative_path": path} for path in relative_paths]}
+
     def git_diff(self, relative_path: str | None = None) -> dict[str, Any]:
         command = ["git", "diff", "--no-ext-diff", "--"]
         if relative_path:

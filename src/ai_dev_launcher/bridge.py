@@ -146,6 +146,11 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
             return workspace.recent_images(float(payload.get("since", 0)), int(payload.get("limit", 16)))
         if action == "workspace.image-path":
             return workspace.image_path(str(payload.get("path", "")))
+        if action == "workspace.image-paths":
+            paths = payload.get("paths", [])
+            if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
+                raise ValueError("Image paths must be a list of strings")
+            return workspace.image_paths(paths)
         if action == "workspace.diff":
             path = payload.get("path")
             return workspace.git_diff(str(path) if path else None)

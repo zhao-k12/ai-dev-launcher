@@ -435,6 +435,7 @@ body { min-width: 900px; min-height: 560px; }
 .conversation .message-list::-webkit-scrollbar-track { background: transparent; }
 .conversation .message-list::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 99px; background: #b9b9b9; background-clip: content-box; }
 .conversation .message-list::-webkit-scrollbar-thumb:hover { background-color: #929292; }
+.conversation .message { content-visibility: auto; contain-intrinsic-size: auto 120px; }
 .composer-shell { position: absolute; right: 0; bottom: 0; left: 0; z-index: 5; padding: 8px max(24px, calc((100% - 850px) / 2)) 12px; background: transparent; pointer-events: none; }
 .composer-shell > * { pointer-events: auto; }
 .composer-card { min-height: 112px; display: grid; grid-template-rows: minmax(54px, auto) 40px; padding: 10px 10px 8px 14px; border: 1px solid #dedede; border-radius: 20px; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.08); }

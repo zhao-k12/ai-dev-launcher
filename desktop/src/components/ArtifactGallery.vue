@@ -7,12 +7,11 @@ const previews = ref<Record<string, string>>({});
 const selected = ref<ImageArtifact | null>(null);
 
 async function load(): Promise<void> {
-  const current: Record<string, string> = {};
-  await Promise.all(props.images.map(async (image) => {
-    try { current[image.path] = (await window.launcher.getImagePreview(props.projectName, image.path)).data_url; }
-    catch { current[image.path] = ""; }
-  }));
-  previews.value = current;
+  try {
+    previews.value = (await window.launcher.getImagePreviews(props.projectName, props.images.map((image) => image.path))).previews;
+  } catch {
+    previews.value = Object.fromEntries(props.images.map((image) => [image.path, ""]));
+  }
 }
 onMounted(() => void load());
 watch(() => [props.projectName, props.images] as const, () => void load(), { deep: true });

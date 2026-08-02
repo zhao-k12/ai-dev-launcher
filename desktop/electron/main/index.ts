@@ -14,6 +14,14 @@ function clipboardImageDirectory(): string {
   return join(app.getPath("temp"), "ai-dev-launcher", "clipboard-images");
 }
 
+function imagePreview(path: string): string {
+  const source = nativeImage.createFromPath(path);
+  if (source.isEmpty()) return "";
+  const size = source.getSize();
+  const preview = size.width > 1600 ? source.resize({ width: 1600, quality: "good" }) : source;
+  return `data:image/jpeg;base64,${preview.toJPEG(84).toString("base64")}`;
+}
+
 async function cleanupClipboardImages(): Promise<void> {
   const directory = clipboardImageDirectory();
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -127,6 +135,12 @@ if (singleInstance) app.whenReady().then(() => {
     const size = source.getSize();
     const preview = size.width > 1600 ? source.resize({ width: 1600, quality: "good" }) : source;
     return { data_url: `data:image/jpeg;base64,${preview.toJPEG(84).toString("base64")}`, width: size.width, height: size.height };
+  });
+  ipcMain.handle("workspace:images-preview", async (_event, payload) => {
+    const result = await callPython<{ images: Array<{ path: string; relative_path: string }> }>("workspace.image-paths", payload);
+    return {
+      previews: Object.fromEntries(result.images.map((image) => [image.relative_path, imagePreview(image.path)]))
+    };
   });
   ipcMain.handle("workspace:diff", (_event, payload) => callPython("workspace.diff", payload));
   ipcMain.handle("workspace:stage", (_event, payload) => callPython("workspace.stage", payload));
