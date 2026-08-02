@@ -17,7 +17,11 @@ function clean(sessions: PersistedSession[]): PersistedSession[] {
     ...session,
     messages: session.messages
       .filter((message) => message.role !== "status")
-      .map(({ uploads: _uploads, ...message }) => message)
+      .map((message) => {
+        const persisted = { ...message };
+        delete persisted.uploads;
+        return persisted;
+      })
   }));
 }
 

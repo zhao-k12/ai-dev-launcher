@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import heapq
 import os
 import subprocess
 import urllib.request
@@ -46,7 +47,8 @@ class WorkspaceService:
 
     def recent_images(self, since: float = 0, limit: int = 16) -> dict[str, Any]:
         supported = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-        images: list[dict[str, Any]] = []
+        capacity = max(1, min(limit, 24))
+        newest: list[tuple[float, str, dict[str, Any]]] = []
         ignored = {".git", "node_modules", ".venv", "dist", "release", "__pycache__"}
         for current, directories, files in os.walk(self.root, topdown=True):
             directories[:] = [name for name in directories if name not in ignored]
@@ -62,9 +64,12 @@ class WorkspaceService:
                 if stat.st_mtime < since:
                     continue
                 relative = path.relative_to(self.root)
-                images.append({"path": relative.as_posix(), "name": name, "size": stat.st_size, "modified_at": stat.st_mtime})
-        images.sort(key=lambda item: (item["modified_at"], item["path"]), reverse=True)
-        return {"images": images[: max(1, min(limit, 24))]}
+                item = {"path": relative.as_posix(), "name": name, "size": stat.st_size, "modified_at": stat.st_mtime}
+                heapq.heappush(newest, (stat.st_mtime, relative.as_posix(), item))
+                if len(newest) > capacity:
+                    heapq.heappop(newest)
+        images = [entry[2] for entry in sorted(newest, reverse=True)]
+        return {"images": images}
 
     def image_path(self, relative_path: str) -> dict[str, Any]:
         path = self._path(relative_path)

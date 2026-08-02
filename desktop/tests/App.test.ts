@@ -153,6 +153,21 @@ describe("App v2 Phase 1", () => {
     view.unmount();
   });
 
+  it("keeps the active project selected while its Codex task is running", async () => {
+    const other = { ...project, name: "other-app", path: "D:\\Projects\\other-app" };
+    vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project, other], default_project: project.name });
+    vi.mocked(window.launcher.startChat).mockImplementation(async (input) => ({ task_id: input.task_id! }));
+    const view = await render();
+    setInput(view.host.querySelector('[data-testid="chat-prompt"]') as HTMLInputElement, "执行任务");
+    await nextTick();
+    clickButton(view.host, "发送"); await flush();
+    (view.host.querySelector('[data-testid="project-row-other-app"]') as HTMLButtonElement).click();
+    await flush();
+    expect(view.host.querySelector('[data-testid="project-row-my-app"]')?.classList.contains("selected")).toBe(true);
+    expect(view.host.textContent).toContain("请等待当前任务完成或先停止任务");
+    view.unmount();
+  });
+
   it("renders Codex JSON events and saves the resumable session", async () => {
     vi.mocked(window.launcher.listProjects).mockResolvedValue({ projects: [project], default_project: "my-app" });
     vi.mocked(window.launcher.startChat).mockImplementation(async (input) => ({ task_id: input.task_id! }));

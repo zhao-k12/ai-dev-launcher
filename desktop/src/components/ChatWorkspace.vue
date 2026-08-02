@@ -11,6 +11,7 @@ interface PendingImage { path: string; name: string; preview: string; }
 interface Message { id: string; role: "user" | "assistant" | "tool" | "status" | "notice"; text: string; artifacts?: ImageArtifact[]; uploads?: PendingImage[]; }
 interface Session { id: string; codexSessionId?: string; name: string; messages: Message[]; updatedAt: string; turnCount?: number; lastInputTokens?: number; topicChars?: number; }
 const props = defineProps<{ project: Project; runtime: RuntimeStatus | null }>();
+const emit = defineEmits<{ runningChange: [running: boolean] }>();
 const sessions = ref<Session[]>([]);
 const activeId = ref("");
 const prompt = ref("");
@@ -218,6 +219,7 @@ watch(() => props.project.path, (_path, previousPath) => {
   if (previousPath) saveNow(`ai-dev-launcher:sessions:${previousPath}`);
   load();
 });
+watch(runningTask, (task) => emit("runningChange", Boolean(task)), { immediate: true });
 onMounted(() => { load(); dispose = window.launcher.onChatEvent(handleEvent); });
 onUnmounted(() => { dispose?.(); saveNow(); if (copiedTimer) window.clearTimeout(copiedTimer); });
 </script>

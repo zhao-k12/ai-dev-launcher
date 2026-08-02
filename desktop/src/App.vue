@@ -22,6 +22,7 @@ const showCreate = ref(false);
 const showEnvironment = ref(false);
 const showVersions = ref(false);
 const editingProject = ref<Project | null>(null);
+const chatRunning = ref(false);
 const createDialog = ref<InstanceType<typeof AddProjectDialog> | null>(null);
 const editDialog = ref<InstanceType<typeof EditProjectDialog> | null>(null);
 let usageTimer: number | undefined;
@@ -80,6 +81,13 @@ async function makeDefault(project: Project): Promise<void> {
   finally { busy.value = false; }
 }
 function openEdit(project: Project): void { selected.value = project; editingProject.value = project; }
+function selectProject(project: Project): void {
+  if (chatRunning.value && selected.value?.name !== project.name) {
+    announce("请等待当前任务完成或先停止任务，再切换项目。");
+    return;
+  }
+  selected.value = project;
+}
 async function updateProject(input: UpdateProjectInput): Promise<void> {
   busy.value = true; error.value = "";
   try {
@@ -115,7 +123,7 @@ onUnmounted(() => { if (usageTimer) window.clearInterval(usageTimer); });
     <div v-if="notice" class="toast success" role="status">{{ notice }}</div><div v-if="error" class="toast error" role="alert"><span>{{ error }}</span><button class="icon-button" aria-label="关闭错误" @click="error = ''">×</button></div>
     <section v-if="loading" class="center-state" data-testid="loading"><span class="spinner"></span><p>正在自动准备 AI 开发环境…</p></section>
     <section v-else-if="projects.length === 0" class="center-state empty" data-testid="empty-state"><div class="empty-icon">▱</div><h1>创建第一个项目</h1><p>只需填写名称和保存位置，其余工作将自动完成。</p><button class="button primary" @click="showCreate = true">创建新项目</button></section>
-    <section v-else class="workspace"><ProjectList :projects="projects" :selected-name="selected?.name ?? null" :default-project="defaultProject" @select="selected = $event" @add="showCreate = true" @set-default="makeDefault" @edit="openEdit" /><ChatWorkspace v-if="selected" :project="selected" :runtime="runtime" /></section>
+    <section v-else class="workspace"><ProjectList :projects="projects" :selected-name="selected?.name ?? null" :default-project="defaultProject" @select="selectProject" @add="showCreate = true" @set-default="makeDefault" @edit="openEdit" /><ChatWorkspace v-if="selected" :project="selected" :runtime="runtime" @running-change="chatRunning = $event" /></section>
     <footer class="status-bar"><span><i class="status" :class="runtime?.status === 'ready' ? 'ready' : 'failed'"></i>{{ runtime?.status === "ready" ? "AI 环境已就绪" : "正在自动恢复" }}</span><span>Headroom {{ runtime?.headroom_version || "检测中" }}{{ runtime && !runtime.headroom_compression ? " · 深度压缩受限" : "" }}</span><span>Codex CLI {{ runtime?.codex_version || "检测中" }}</span><strong>与 Codex 桌面端独立</strong></footer>
     <AddProjectDialog v-if="showCreate" ref="createDialog" :busy="busy" @close="showCreate = false" @submit="createProject" @select-directory="selectDirectory" />
     <EditProjectDialog v-if="editingProject" ref="editDialog" :project="editingProject" :busy="busy" @close="editingProject = null" @submit="updateProject" @select-directory="selectEditDirectory" />

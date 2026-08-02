@@ -29,3 +29,16 @@ packages = ["src/ai_dev_launcher"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B"]
+ignore = ["E501"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.1",
+]

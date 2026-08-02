@@ -89,6 +89,9 @@ def test_incomplete_marker_block_is_rejected(tmp_path):
 
 
 def test_git_failure_stops_before_metadata_write(tmp_path):
+    original = "# Existing instructions\n\nKeep this."
+    (tmp_path / "AGENTS.md").write_text(original, encoding="utf-8")
+
     def git_runner(path):
         return subprocess.CompletedProcess(["git", "init"], 1, "", "git failed")
 
@@ -97,4 +100,5 @@ def test_git_failure_stops_before_metadata_write(tmp_path):
     with pytest.raises(PreparationError, match="git failed"):
         service.prepare(_project(tmp_path))
 
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == original
     assert not (tmp_path / ".ai-dev-launcher" / "project.json").exists()

@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from ai_dev_launcher.config.locking import file_lock
+
 UpdateRunner = Callable[[list[str], Mapping[str, str]], subprocess.CompletedProcess[str]]
 
 
@@ -28,17 +30,23 @@ class PrivateToolUpdateService:
 
     def update_all(self) -> dict[str, Any]:
         self.root.mkdir(parents=True, exist_ok=True)
-        state_path = self.root / "update-state.json"
-        try:
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            last_attempt = datetime.fromisoformat(str(state.get("last_attempt")))
-            if datetime.now(UTC) - last_attempt < timedelta(hours=24) and not self._private_tools_need_repair():
-                return {"tools": [], "skipped": "automatic update check already ran today"}
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
-            pass
-        results = [self._update_codex(), self._update_headroom()]
-        state_path.write_text(json.dumps({"last_attempt": datetime.now(UTC).isoformat(), "results": results}, indent=2) + "\n", encoding="utf-8")
-        return {"tools": results}
+        with file_lock(self.root / "update.lock"):
+            state_path = self.root / "update-state.json"
+            try:
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+                last_attempt = datetime.fromisoformat(str(state.get("last_attempt")))
+                if datetime.now(UTC) - last_attempt < timedelta(hours=24) and not self._private_tools_need_repair():
+                    return {"tools": [], "skipped": "automatic update check already ran today"}
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                pass
+            results = [self._update_codex(), self._update_headroom()]
+            temporary = state_path.with_suffix(".json.tmp")
+            try:
+                temporary.write_text(json.dumps({"last_attempt": datetime.now(UTC).isoformat(), "results": results}, indent=2) + "\n", encoding="utf-8")
+                temporary.replace(state_path)
+            except OSError:
+                temporary.unlink(missing_ok=True)
+            return {"tools": results}
 
     def _update_codex(self) -> dict[str, Any]:
         npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -78,6 +79,44 @@ class ProjectPreparationService:
         self.git_runner = git_runner
 
     def prepare(
+        self,
+        project: Project,
+        *,
+        dry_run: bool = False,
+        initialize_git: bool = True,
+    ) -> PreparationResult:
+        """Prepare a project and restore all managed files if any step fails."""
+
+        root = Path(project.path)
+        agents_path = root / "AGENTS.md"
+        metadata_path = root / ".ai-dev-launcher" / "project.json"
+        agents_existed = agents_path.exists()
+        metadata_existed = metadata_path.exists()
+        git_existed = (root / ".git").exists()
+        agents_before = agents_path.read_bytes() if agents_existed else None
+        metadata_before = metadata_path.read_bytes() if metadata_existed else None
+        try:
+            return self._prepare_impl(project, dry_run=dry_run, initialize_git=initialize_git)
+        except Exception:
+            if not dry_run:
+                self._restore_file(agents_path, agents_existed, agents_before)
+                self._restore_file(metadata_path, metadata_existed, metadata_before)
+                if not git_existed and (root / ".git").exists():
+                    shutil.rmtree(root / ".git", ignore_errors=True)
+            raise
+
+    @staticmethod
+    def _restore_file(path: Path, existed: bool, content: bytes | None) -> None:
+        try:
+            if existed and content is not None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            elif path.exists():
+                path.unlink()
+        except OSError:
+            pass
+
+    def _prepare_impl(
         self,
         project: Project,
         *,

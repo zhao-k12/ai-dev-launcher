@@ -8,6 +8,7 @@ import { ChatSessionManager } from "./chatSessions.js";
 import { readCodexUsage } from "./codexUsage.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
+let mainWindow: BrowserWindow | null = null;
 
 function clipboardImageDirectory(): string {
   return join(app.getPath("temp"), "ai-dev-launcher", "clipboard-images");
@@ -42,6 +43,7 @@ function createWindow(): void {
       sandbox: true
     }
   });
+  mainWindow = window;
   const chats = new ChatSessionManager(window);
   ipcMain.handle("projects:update", (_event, payload) => {
     if (chats.hasActiveProject(String(payload?.current_name ?? ""))) {
@@ -59,6 +61,7 @@ function createWindow(): void {
   ipcMain.handle("chat:start", (_event, payload) => chats.start(payload));
   ipcMain.handle("chat:stop", (_event, payload) => chats.stop(payload.task_id));
   window.on("closed", () => {
+    mainWindow = null;
     chats.stopAll();
     ipcMain.removeHandler("projects:update");
   });
@@ -71,7 +74,16 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) app.quit();
+else app.on("second-instance", () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
+
+if (singleInstance) app.whenReady().then(() => {
   void cleanupClipboardImages();
   Menu.setApplicationMenu(null);
   ipcMain.handle("projects:list", () => callPython("projects.list"));
